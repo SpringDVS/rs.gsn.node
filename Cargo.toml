@@ -1,0 +1,13 @@
+[package]
+
+name = "spring_gsn"
+version = "0.0.1"
+authors = [ "Charlie Fyvie-Gauld <cfg@zunautica.org>" ]
+license = "GPLv3"
+
+[[bin]]
+
+name = "spring_gsn"
+
+[dependencies.spring_dvs]
+path = "src/spring_dvs"
