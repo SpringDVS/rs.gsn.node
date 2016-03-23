@@ -6,6 +6,10 @@ extern crate spring_dvs;
 
 #[allow(unused_imports)]
 use spring_dvs::protocol::*;
+use spring_dvs::model::Netspace;
+
+mod netspace;
+
 
 fn main() {
     println!("Spring GSN Root Node");
