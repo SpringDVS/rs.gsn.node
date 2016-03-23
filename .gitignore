@@ -1,3 +1,5 @@
 Cargo.lock
 target/*
 src/spring_dvs/*
+/gsn.db
+/.project
