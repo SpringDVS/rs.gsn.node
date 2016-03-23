@@ -11,3 +11,6 @@ name = "spring_gsn"
 
 [dependencies.spring_dvs]
 path = "src/spring_dvs"
+
+[dependencies]
+sqlite = "0.21.1"
