@@ -6,7 +6,7 @@ extern crate sqlite;
 use self::sqlite::{State,Statement};
 
 pub use self::spring_dvs::model::{Netspace,Node};
-pub use self::spring_dvs::enums::{Success,Failure,DvspNodeState,DvspNodeType};
+pub use self::spring_dvs::enums::{Success,Failure,DvspNodeState,DvspNodeType,DvspService};
 use self::spring_dvs::protocol::{Ipv4,NodeTypeField, u8_service_type, u8_status_type};
 use self::spring_dvs::formats::{ipv4_to_str_address,str_address_to_ipv4};
 
@@ -216,8 +216,67 @@ impl Netspace for NetspaceIo {
 		}		
 	}
 
-	fn gsn_node_update(&self, node: &Node) -> Result<Success,Failure> {
-		Ok(Success::Ok)
+	fn gsn_node_update_state(&self, node: &Node) -> Result<Success,Failure> {
+	
+		if self.gsn_node_by_springname(node.springname()).is_err() {
+			return Err(Failure::InvalidArgument)
+		}
+		
+		let mut statement = self.db.prepare(
+						"UPDATE  
+						`geosub_netspace`
+						SET status = ?
+						WHERE springname = ?").unwrap();
+		
+		statement.bind(1, &sqlite::Value::Integer( node.state() as i64 ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
+		
+		match statement.next() {
+			Ok(_) => Ok(Success::Ok),
+			Err(_) => Err(Failure::InvalidArgument)   
+		}
+	}
+	
+	fn gsn_node_update_types(&self, node: &Node) -> Result<Success,Failure> {
+	
+		if self.gsn_node_by_springname(node.springname()).is_err() {
+			return Err(Failure::InvalidArgument)
+		}
+		
+		let mut statement = self.db.prepare(
+						"UPDATE  
+						`geosub_netspace`
+						SET types = ?
+						WHERE springname = ?").unwrap();
+		
+		statement.bind(1, &sqlite::Value::Integer( node.types() as i64 ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
+		
+		match statement.next() {
+			Ok(_) => Ok(Success::Ok),
+			Err(_) => Err(Failure::InvalidArgument)   
+		}
+	}
+
+	fn gsn_node_update_service(&self, node: &Node) -> Result<Success,Failure> {
+	
+		if self.gsn_node_by_springname(node.springname()).is_err() {
+			return Err(Failure::InvalidArgument)
+		}
+		
+		let mut statement = self.db.prepare(
+						"UPDATE  
+						`geosub_netspace`
+						SET service = ?
+						WHERE springname = ?").unwrap();
+		
+		statement.bind(1, &sqlite::Value::Integer( node.service() as i64 ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
+		
+		match statement.next() {
+			Ok(_) => Ok(Success::Ok),
+			Err(_) => Err(Failure::InvalidArgument)   
+		}
 	}
 }
 
@@ -393,6 +452,84 @@ mod tests {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
 		let r = nsio.gsn_node_unregister((& Node::from_node_string("nonname,host,192.172.1.1").unwrap()));
+		assert!(r.is_err());
+		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
+	}
+	
+	#[test]
+	fn ts_netspaceio_gsn_node_update_state_p() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let mut n = Node::from_springname("cci").unwrap();
+		n.update_state(DvspNodeState::Unresponsive);
+		let r = nsio.gsn_node_update_state(&n);
+		assert!(r.is_ok());
+		
+		let node = nsio.gsn_node_by_springname("cci").unwrap();
+		assert_eq!(DvspNodeState::Unresponsive, node.state());
+	}
+	
+	#[test]
+	fn ts_netspaceio_gsn_node_update_state_f() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let mut n = Node::from_springname("ccid").unwrap();
+		n.update_state(DvspNodeState::Unresponsive);
+		let r = nsio.gsn_node_update_state(&n);
+		assert!(r.is_err());
+		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
+	}
+
+	#[test]
+	fn ts_netspaceio_gsn_node_update_types_p() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let mut n = Node::from_springname("cci").unwrap();
+		n.update_types(DvspNodeType::Undefined as u8);
+		let r = nsio.gsn_node_update_types(&n);
+		assert!(r.is_ok());
+		
+		let node = nsio.gsn_node_by_springname("cci").unwrap();
+		assert_eq!(DvspNodeType::Undefined as u8, node.types());
+	}
+	
+	#[test]
+	fn ts_netspaceio_gsn_node_update_types_f() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let mut n = Node::from_springname("ccid").unwrap();
+		n.update_types(DvspNodeType::Undefined as u8);
+		let r = nsio.gsn_node_update_types(&n);
+		assert!(r.is_err());
+		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
+	}
+
+	#[test]
+	fn ts_netspaceio_gsn_node_update_service_p() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let mut n = Node::from_springname("cci").unwrap();
+		n.update_service(DvspService::Undefined);
+		let r = nsio.gsn_node_update_service(&n);
+		assert!(r.is_ok());
+		
+		let node = nsio.gsn_node_by_springname("cci").unwrap();
+		assert_eq!(DvspService::Undefined, node.service());
+	}
+	
+	#[test]
+	fn ts_netspaceio_gsn_node_update_service_f() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let mut n = Node::from_springname("ccid").unwrap();
+		n.update_service(DvspService::Undefined);
+		let r = nsio.gsn_node_update_service(&n);
 		assert!(r.is_err());
 		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
 	}
