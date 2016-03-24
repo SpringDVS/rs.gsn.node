@@ -6,7 +6,7 @@ extern crate sqlite;
 use self::sqlite::{State,Statement};
 
 pub use self::spring_dvs::model::{Netspace,Node};
-pub use self::spring_dvs::enums::{Failure,DvspNodeState,DvspNodeType};
+pub use self::spring_dvs::enums::{Success,Failure,DvspNodeState,DvspNodeType};
 use self::spring_dvs::protocol::{Ipv4,NodeTypeField, u8_service_type, u8_status_type};
 use self::spring_dvs::formats::{ipv4_to_str_address,str_address_to_ipv4};
 
@@ -66,13 +66,33 @@ impl NetspaceIo {
 
 		match statement.next() {
 			Ok(state) => match state {
-							State::Row => Ok(self.fill_node(&statement).unwrap()),
+				
+							State::Row => self.fill_node(&statement),
 			 				_ => Err(Failure::InvalidArgument)
+			 				
 						},
 
 			_ => Err(Failure::InvalidArgument)
 
 		}
+		
+	}
+	
+	fn debug_print_rows(&self, statement: &mut Statement) {
+		
+		while let State::Row = statement.next().unwrap() {
+			
+			println!("id = {}", statement.read::<i64>(0).unwrap());
+			println!("spring = {}", statement.read::<String>(1).unwrap());
+			println!("host = {}", statement.read::<String>(2).unwrap());
+			println!("address = {}", statement.read::<String>(3).unwrap());
+			println!("service = {}", statement.read::<i64>(4).unwrap());
+			println!("status = {}", statement.read::<i64>(5).unwrap());
+			println!("types = {}", statement.read::<i64>(6).unwrap());
+			    			
+		}
+		
+		statement.reset();
 		
 	}
 }
@@ -128,6 +148,7 @@ impl Netspace for NetspaceIo {
 		").unwrap();
 
 		statement.bind(1, &sqlite::Value::String( String::from(name) ) ).unwrap();
+		
 		self.node_from_statement(&mut statement)
 	}
 	
@@ -151,6 +172,40 @@ impl Netspace for NetspaceIo {
 		let v: Vec<String> = Vec::new();
 		
 		v
+	}
+	
+	
+	fn gsn_node_register(&self, node: &Node) -> Result<Success,Failure> {
+		
+		if self.gsn_node_by_springname(node.springname()).is_ok() {
+			return Err(Failure::Duplicate)
+		}
+		
+		let mut statement = self.db.prepare(
+						"INSERT INTO 
+						`geosub_netspace` 
+						(springname,hostname,address,service,status,types) 
+						VALUES (?,?,?,?,?,?)").unwrap();
+		statement.bind(1, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( String::from(node.hostname()) ) ).unwrap();
+		statement.bind(3, &sqlite::Value::String( ipv4_to_str_address(node.address() ) ) ).unwrap();
+		statement.bind(4, &sqlite::Value::Integer( node.service() as i64 ) ).unwrap();
+		statement.bind(5, &sqlite::Value::Integer( node.state() as i64 ) ).unwrap();
+		statement.bind(6, &sqlite::Value::Integer( node.types() as i64 ) ).unwrap();
+		match statement.next() {
+			Ok(_) => Ok(Success::Ok),
+			Err(_) => Err(Failure::InvalidArgument)   
+		}
+		
+	}
+
+	fn gsn_node_unregister(&self, node: &Node) -> Result<Success,Failure> {
+		
+		Ok(Success::Ok)
+	}
+
+	fn gsn_node_update(&self, node: &Node) -> Result<Success,Failure> {
+		Ok(Success::Ok)
 	}
 }
 
@@ -282,5 +337,31 @@ mod tests {
 		setup_netspace(nsio.db());
 		let r = nsio.gsn_node_by_hostname("morrowind");
 		assert!(r.is_err());
+	}
+	
+	#[test]
+	fn ts_netspaceio_gsn_node_by_register_p() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		let r = nsio.gsn_node_register((& Node::from_node_string("spring,host,192.172.1.1").unwrap()));
+		assert!(r.is_ok());
+		
+		let r2 = nsio.gsn_node_by_springname("spring");
+		assert!(r2.is_ok());
+		let node = r2.unwrap();
+		
+		assert_eq!("host", node.hostname());
+	}
+	
+	#[test]
+	fn ts_netspaceio_gsn_node_by_register_f() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		let r = nsio.gsn_node_register((& Node::from_node_string("esusx,host,192.172.1.1").unwrap()));
+		assert!(r.is_err());
+		
+		let e = r.unwrap_err();
+		assert_eq!(Failure::Duplicate, e);
+		
 	}
 }
