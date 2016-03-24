@@ -200,8 +200,20 @@ impl Netspace for NetspaceIo {
 	}
 
 	fn gsn_node_unregister(&self, node: &Node) -> Result<Success,Failure> {
+		if self.gsn_node_by_springname(node.springname()).is_err() {
+			return Err(Failure::InvalidArgument)
+		}
 		
-		Ok(Success::Ok)
+		let mut statement = self.db.prepare(
+						"DELETE FROM 
+						`geosub_netspace` WHERE 
+						springname = ?").unwrap();
+		statement.bind(1, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
+		
+		match statement.next() {
+			Ok(_) => Ok(Success::Ok),
+			Err(_) => Err(Failure::InvalidArgument)   
+		}		
 	}
 
 	fn gsn_node_update(&self, node: &Node) -> Result<Success,Failure> {
@@ -363,5 +375,25 @@ mod tests {
 		let e = r.unwrap_err();
 		assert_eq!(Failure::Duplicate, e);
 		
+	}
+
+	#[test]
+	fn ts_netspaceio_gsn_node_by_unregister_p() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		let r = nsio.gsn_node_unregister((& Node::from_node_string("cci,host,192.172.1.1").unwrap()));
+		assert!(r.is_ok());
+		
+		let r2 = nsio.gsn_node_by_springname("cci");
+		assert!(r2.is_err());
+	}
+
+	#[test]
+	fn ts_netspaceio_gsn_node_by_unregister_f() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		let r = nsio.gsn_node_unregister((& Node::from_node_string("nonname,host,192.172.1.1").unwrap()));
+		assert!(r.is_err());
+		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
 	}
 }
