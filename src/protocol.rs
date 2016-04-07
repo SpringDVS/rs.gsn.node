@@ -57,20 +57,33 @@ fn process_frame_register(packet: &Packet) -> Vec<u8> {
 		&nodestring_from_node_register( &frame.nodereg, &packet.header().addr_orig )
 	).unwrap();
 
-	match nio.gsn_node_by_hostname(&node.hostname()) {
-		Ok(_) => return forge_response_packet(DvspRcode::NetspaceDuplication).unwrap().serialise(),
-		_ => { }
-	};
+	let registered = netspace_routine_is_registered(&node, &nio);
 	
-	match nio.gsn_node_by_springname(&node.springname()) {
-		Ok(_) => return forge_response_packet(DvspRcode::NetspaceDuplication).unwrap().serialise(),
-		_ => { }
-	};
-
-
-	match forge_response_packet(DvspRcode::Ok) {
-		Ok(p) => p.serialise(),
-		_ => Vec::new()
+	if frame.register ==  true {
+		match registered {
+			true => forge_response_packet(DvspRcode::NetspaceDuplication).unwrap().serialise(),
+			false => register_node(&node, &nio)
+		}
+	} else {
+		match registered {
+			false => forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise(),
+			true => unregister_node(&node, &nio)
+		}		
 	}
 	
+}
+
+fn register_node(node: &Node, nio: &NetspaceIo) -> Vec<u8> {
+	match nio.gsn_node_register(&node) { 
+		Ok(_) => forge_response_packet(DvspRcode::Ok).unwrap().serialise(),
+		_ => forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise(),
+	}
+}
+
+fn unregister_node(node: &Node, nio: &NetspaceIo) -> Vec<u8> {
+	
+	match nio.gsn_node_unregister(&node) { 
+		Ok(_) => forge_response_packet(DvspRcode::Ok).unwrap().serialise(),
+		_ => forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise(),
+	}
 }
