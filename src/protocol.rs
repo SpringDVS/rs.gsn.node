@@ -3,7 +3,7 @@ use netspace::*;
 use spring_dvs::formats::*;
 pub use spring_dvs::serialise::{NetSerial};
 pub use spring_dvs::protocol::{Packet, PacketHeader};
-pub use spring_dvs::protocol::{FrameResponse, FrameRegister};
+pub use spring_dvs::protocol::{FrameResponse, FrameRegister, FrameStateUpdate};
 
 
 
@@ -22,9 +22,8 @@ pub fn process_packet(bytes: &[u8], address: &SocketAddr) -> Vec<u8> {
 	let mut packet : Packet = match  Packet::deserialise(&bytes) {
 				Ok(p) => p,
 				Err(_) => { 
-					println!("Deserialise error");
-					let fr = FrameResponse::new(DvspRcode::MalformedContent);
-					return fr.serialise() 
+					println!("Deserialise Packet error");
+					return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
 				} 
 			};
 	
@@ -39,6 +38,8 @@ pub fn process_packet(bytes: &[u8], address: &SocketAddr) -> Vec<u8> {
 
 	match packet.header().msg_type {
 		DvspMsgType::GsnRegistration => process_frame_register(&packet),
+		DvspMsgType::GsnState => process_frame_state_update(&packet, &address),
+		
 		_ => match forge_response_packet(DvspRcode::MalformedContent) {
 			Ok(p) => p.serialise(),
 			_ => Vec::new()
@@ -50,25 +51,33 @@ fn process_frame_register(packet: &Packet) -> Vec<u8> {
 	let nio = NetspaceIo::new("gsn.db");
 	let frame : FrameRegister = match packet.content_as::<FrameRegister>() {
 		Ok(f) => f,
-		Err(_) => return forge_response_packet(DvspRcode::Ok).unwrap().serialise()
+		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
 	};
 
-	let node = Node::from_node_string( 
+	let mut node = Node::from_node_string( 
 		&nodestring_from_node_register( &frame.nodereg, &packet.header().addr_orig )
 	).unwrap();
 
 	let registered = netspace_routine_is_registered(&node, &nio);
 	
 	if frame.register ==  true {
+
+		node.update_service(frame.service);
+		node.update_types(frame.ntype);
+		node.update_state(DvspNodeState::Disabled);
+
 		match registered {
 			true => forge_response_packet(DvspRcode::NetspaceDuplication).unwrap().serialise(),
 			false => register_node(&node, &nio)
 		}
+
 	} else {
+
 		match registered {
 			false => forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise(),
 			true => unregister_node(&node, &nio)
-		}		
+		}
+
 	}
 	
 }
@@ -87,3 +96,39 @@ fn unregister_node(node: &Node, nio: &NetspaceIo) -> Vec<u8> {
 		_ => forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise(),
 	}
 }
+
+fn process_frame_state_update(packet: &Packet, address: &SocketAddr) -> Vec<u8> {
+
+	let nio = NetspaceIo::new("gsn.db");
+	let frame : FrameStateUpdate = match packet.content_as::<FrameStateUpdate>() {
+		Ok(f) => f,
+		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
+	};
+
+	let mut node : Node = match nio.gsn_node_by_springname(&frame.springname) {
+		Ok(n) => n,
+		Err(_) => return forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise()
+	};
+	
+	match address {
+		&SocketAddr::V4(addr) => { 
+			if node.address() != addr.ip().octets() {
+				return forge_response_packet(DvspRcode::NetworkError).unwrap().serialise()
+			}
+		},
+		_ => { } // ToDo: Handle IPv6
+	} 
+	
+	node.update_state(frame.status);
+	
+	match nio.gsn_node_update_state(&node) {
+	 Ok(_) => forge_response_packet(DvspRcode::Ok).unwrap().serialise(),
+	 Err(_) => return forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise()
+	}
+}
+
+
+
+
+
+
