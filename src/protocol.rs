@@ -1,7 +1,10 @@
+use std::net::{SocketAddr, SocketAddrV4};
+use netspace::*;
+use spring_dvs::formats::*;
 pub use spring_dvs::serialise::{NetSerial};
 pub use spring_dvs::protocol::{Packet, PacketHeader};
-pub use spring_dvs::protocol::{FrameResponse};
-pub use spring_dvs::enums::*;
+pub use spring_dvs::protocol::{FrameResponse, FrameRegister};
+
 
 
 fn forge_packet<T: NetSerial>(msg_type: DvspMsgType, frame: &T) -> Result<Packet, Failure> {
@@ -14,9 +17,9 @@ fn forge_response_packet(rcode: DvspRcode) -> Result<Packet, Failure> {
 	forge_packet(DvspMsgType::GsnResponse, &FrameResponse::new(rcode))
 }
 
-pub fn process_packet(bytes: &[u8]) -> Vec<u8> {
+pub fn process_packet(bytes: &[u8], address: &SocketAddr) -> Vec<u8> {
 
-	let packet : Packet = match  Packet::deserialise(&bytes) {
+	let mut packet : Packet = match  Packet::deserialise(&bytes) {
 				Ok(p) => p,
 				Err(_) => { 
 					println!("Deserialise error");
@@ -24,9 +27,18 @@ pub fn process_packet(bytes: &[u8]) -> Vec<u8> {
 					return fr.serialise() 
 				} 
 			};
-		
+	
+	// this is the first hop, so we fill in the packet origin details here
+	// which will be the public facing address of the host
+	if packet.header().addr_orig == [0,0,0,0] {
+		match address {
+			&SocketAddr::V4(addr) => { packet.mut_header().addr_orig = addr.ip().octets() },
+			_ => { } // ToDo: Handle IPv6
+		}
+	}
+
 	match packet.header().msg_type {
-		DvspMsgType::GsnRegistration => process_frame_register(),
+		DvspMsgType::GsnRegistration => process_frame_register(&packet),
 		_ => match forge_response_packet(DvspRcode::MalformedContent) {
 			Ok(p) => p.serialise(),
 			_ => Vec::new()
@@ -34,8 +46,28 @@ pub fn process_packet(bytes: &[u8]) -> Vec<u8> {
 	}
 }
 
-fn process_frame_register() -> Vec<u8> {
+fn process_frame_register(packet: &Packet) -> Vec<u8> {
+	let nio = NetspaceIo::new("gsn.db");
+	let frame : FrameRegister = match packet.content_as::<FrameRegister>() {
+		Ok(f) => f,
+		Err(_) => return forge_response_packet(DvspRcode::Ok).unwrap().serialise()
+	};
+
+	let node = Node::from_node_string( 
+		&nodestring_from_node_register( &frame.nodereg, &packet.header().addr_orig )
+	).unwrap();
+
+	match nio.gsn_node_by_hostname(&node.hostname()) {
+		Ok(_) => return forge_response_packet(DvspRcode::NetspaceDuplication).unwrap().serialise(),
+		_ => { }
+	};
 	
+	match nio.gsn_node_by_springname(&node.springname()) {
+		Ok(_) => return forge_response_packet(DvspRcode::NetspaceDuplication).unwrap().serialise(),
+		_ => { }
+	};
+
+
 	match forge_response_packet(DvspRcode::Ok) {
 		Ok(p) => p.serialise(),
 		_ => Vec::new()
