@@ -4,7 +4,7 @@ use spring_dvs::formats::*;
 pub use spring_dvs::serialise::{NetSerial};
 pub use spring_dvs::protocol::{Packet, PacketHeader};
 use spring_dvs::protocol::{FrameRegister, FrameStateUpdate, FrameNodeRequest};
-use spring_dvs::protocol::{FrameResponse, FrameNodeInfo};
+use spring_dvs::protocol::{FrameResponse, FrameNodeInfo, FrameNodeStatus};
 
 
 
@@ -38,9 +38,11 @@ pub fn process_packet(bytes: &[u8], address: &SocketAddr) -> Vec<u8> {
 	}
 
 	match packet.header().msg_type {
+		
 		DvspMsgType::GsnRegistration => process_frame_register(&packet),
 		DvspMsgType::GsnState => process_frame_state_update(&packet, &address),
 		DvspMsgType::GsnNodeInfo => process_frame_node_info(&packet),
+		DvspMsgType::GsnNodeStatus => process_frame_node_status(&packet),
 		
 		_ => match forge_response_packet(DvspRcode::MalformedContent) {
 			Ok(p) => p.serialise(),
@@ -153,4 +155,20 @@ fn process_frame_node_info(packet: &Packet) -> Vec<u8> {
 }
 
 
+fn process_frame_node_status(packet: &Packet) -> Vec<u8> {
+	let nio = NetspaceIo::new("gsn.db");
+	let frame : FrameNodeRequest = match packet.content_as::<FrameNodeRequest>() {
+		Ok(f) => f,
+		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
+	};
+	let shi = String::from_utf8(frame.shi).unwrap();
+	let node : Node = match nio.gsn_node_by_springname(&shi) {
+		Ok(n) => n,
+		Err(_) => return forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise()
+	};
+	
+	let info = FrameNodeStatus::new(node.state());
+	
+	forge_packet(DvspMsgType::GsnResponseStatus, &info).unwrap().serialise()
+}
 
