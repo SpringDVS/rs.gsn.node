@@ -280,6 +280,21 @@ impl Netspace for NetspaceIo {
 	}
 }
 
+pub fn netspace_routine_is_registered(node: &Node, nio: &NetspaceIo) -> bool {
+	
+	match nio.gsn_node_by_hostname(&node.hostname()) {
+		Ok(_) => true,
+		
+		Err(_) => { 
+			match nio.gsn_node_by_springname(&node.springname()) {
+				Ok(_) => true,
+				Err(_) => false
+			}
+		}
+	}
+
+}
+
 mod tests {
 	
 	extern crate sqlite;
@@ -532,5 +547,26 @@ mod tests {
 		let r = nsio.gsn_node_update_service(&n);
 		assert!(r.is_err());
 		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
+	}
+	
+		#[test]
+	fn ts_netspace_routine_is_registered_p() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let n = Node::from_springname("cci").unwrap();
+		
+		assert!(netspace_routine_is_registered(&n, &nsio));
+		
+	}
+	
+	#[test]
+	fn ts_netspace_routine_is_registered_f() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let n = Node::from_node_string("ccid,dvsnode.greenman.zus,192.168.1.2").unwrap();
+		assert_eq!(false, netspace_routine_is_registered(&n, &nsio));
+				
 	}
 }
