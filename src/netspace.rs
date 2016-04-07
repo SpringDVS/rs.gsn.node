@@ -119,10 +119,11 @@ impl Netspace for NetspaceIo {
 		
 	}
 
+	
 	fn gsn_nodes_by_type(&self, types: NodeTypeField) -> Vec<Node> {
 		
 		let mut statement = self.db.prepare("
-    	SELECT * FROM geosub_netspace WHERE types = ?
+    	SELECT * FROM geosub_netspace WHERE types & ?
 		").unwrap();
 
 		statement.bind(1, &sqlite::Value::Integer( types as i64 ) ).unwrap();
