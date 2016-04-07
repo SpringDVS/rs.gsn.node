@@ -3,7 +3,8 @@ use netspace::*;
 use spring_dvs::formats::*;
 pub use spring_dvs::serialise::{NetSerial};
 pub use spring_dvs::protocol::{Packet, PacketHeader};
-pub use spring_dvs::protocol::{FrameResponse, FrameRegister, FrameStateUpdate};
+use spring_dvs::protocol::{FrameRegister, FrameStateUpdate, FrameNodeRequest};
+use spring_dvs::protocol::{FrameResponse, FrameNodeInfo};
 
 
 
@@ -39,6 +40,7 @@ pub fn process_packet(bytes: &[u8], address: &SocketAddr) -> Vec<u8> {
 	match packet.header().msg_type {
 		DvspMsgType::GsnRegistration => process_frame_register(&packet),
 		DvspMsgType::GsnState => process_frame_state_update(&packet, &address),
+		DvspMsgType::GsnNodeInfo => process_frame_node_info(&packet),
 		
 		_ => match forge_response_packet(DvspRcode::MalformedContent) {
 			Ok(p) => p.serialise(),
@@ -116,7 +118,7 @@ fn process_frame_state_update(packet: &Packet, address: &SocketAddr) -> Vec<u8> 
 				return forge_response_packet(DvspRcode::NetworkError).unwrap().serialise()
 			}
 		},
-		_ => { } // ToDo: Handle IPv6
+		_ => return forge_response_packet(DvspRcode::NetworkError).unwrap().serialise() // ToDo: Handle IPv6
 	} 
 	
 	node.update_state(frame.status);
@@ -128,7 +130,27 @@ fn process_frame_state_update(packet: &Packet, address: &SocketAddr) -> Vec<u8> 
 }
 
 
+fn process_frame_node_info(packet: &Packet) -> Vec<u8> {
+	let nio = NetspaceIo::new("gsn.db");
+	let frame : FrameNodeRequest = match packet.content_as::<FrameNodeRequest>() {
+		Ok(f) => f,
+		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
+	};
+	let shi = String::from_utf8(frame.shi).unwrap();
+	
+	// ToDo:
+	//	- Hostname
+	//  - IP Address
 
+	let node : Node = match nio.gsn_node_by_springname(&shi) {
+		Ok(n) => n,
+		Err(_) => return forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise()
+	};
+	
+	let info = FrameNodeInfo::new(node.types(), node.service(), node.address(), &node.to_node_register());
+	
+	forge_packet(DvspMsgType::GsnResponseNodeInfo, &info).unwrap().serialise()
+}
 
 
 
