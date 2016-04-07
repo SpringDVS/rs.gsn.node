@@ -70,7 +70,7 @@ fn epoll_wait(epfd: RawFd, socket: UdpSocket) {
 
        			println!("From {}", from);
 
-            	let bytes = process_packet(&bytes[0..sz]);
+            	let bytes = process_packet(&bytes[0..sz], &from);
             	match socket.send_to(bytes.as_slice(), from) {
             		Err(_) => return,
 					_ => { }
