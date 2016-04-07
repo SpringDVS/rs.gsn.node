@@ -6,7 +6,7 @@ extern crate sqlite;
 use self::sqlite::{State,Statement};
 
 pub use self::spring_dvs::model::{Netspace,Node};
-pub use self::spring_dvs::enums::{Success,Failure,DvspNodeState,DvspNodeType,DvspService};
+pub use self::spring_dvs::enums::*;
 use self::spring_dvs::protocol::{Ipv4,NodeTypeField, u8_service_type, u8_status_type};
 use self::spring_dvs::formats::{ipv4_to_str_address,str_address_to_ipv4};
 
@@ -113,7 +113,7 @@ impl Netspace for NetspaceIo {
     	SELECT * FROM geosub_netspace WHERE address = ?
 		").unwrap();
 
-		statement.bind(1, &sqlite::Value::String( ipv4_to_str_address(address) ) ).unwrap();
+		statement.bind(1, &sqlite::Value::String( ipv4_to_str_address(&address) ) ).unwrap();
 		
 		self.vector_from_statement(&mut statement)
 		
@@ -188,7 +188,7 @@ impl Netspace for NetspaceIo {
 						VALUES (?,?,?,?,?,?)").unwrap();
 		statement.bind(1, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
 		statement.bind(2, &sqlite::Value::String( String::from(node.hostname()) ) ).unwrap();
-		statement.bind(3, &sqlite::Value::String( ipv4_to_str_address(node.address() ) ) ).unwrap();
+		statement.bind(3, &sqlite::Value::String( ipv4_to_str_address(&node.address() ) ) ).unwrap();
 		statement.bind(4, &sqlite::Value::Integer( node.service() as i64 ) ).unwrap();
 		statement.bind(5, &sqlite::Value::Integer( node.state() as i64 ) ).unwrap();
 		statement.bind(6, &sqlite::Value::Integer( node.types() as i64 ) ).unwrap();
