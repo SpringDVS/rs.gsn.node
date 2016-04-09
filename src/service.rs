@@ -55,33 +55,33 @@ fn epoll_wait(epfd: RawFd, socket: UdpSocket) {
   
     unsafe { events.set_len(100); }
     
-    
-    match epoll::wait(epfd, &mut events[..], -1) {
-
-        Ok(num_events) => {
-            
-            
-            for _ in 0..num_events {
-
-       			let (sz, from) = match socket.recv_from(&mut bytes) {
-					Err(_) => return,
-					Ok(s) => s
-				};
-
-       			println!("From {}", from);
-
-            	let bytes = process_packet(&bytes[0..sz], &from);
-            	match socket.send_to(bytes.as_slice(), from) {
-            		Err(_) => return,
-					_ => { }
-            	};
-
-            }
-        }
-
-        Err(e) => println!("Error on epoll::wait(): {}", e)
-	}
-
+    loop {
+	    match epoll::wait(epfd, &mut events[..], -1) {
+	
+	        Ok(num_events) => {
+	            
+	            
+	            for _ in 0..num_events {
+	
+	       			let (sz, from) = match socket.recv_from(&mut bytes) {
+						Err(_) => return,
+						Ok(s) => s
+					};
+	
+	       			println!("From {}", from);
+	
+	            	let bytes = process_packet(&bytes[0..sz], &from);
+	            	match socket.send_to(bytes.as_slice(), from) {
+	            		Err(_) => return,
+						_ => { }
+	            	};
+	
+	            }
+	        }
+	
+	        Err(e) => println!("Error on epoll::wait(): {}", e)
+		}
+    }
 }
 
 
