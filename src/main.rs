@@ -5,18 +5,22 @@
 #![allow(unused_imports)]
 extern crate spring_dvs;
 
-
-use spring_dvs::protocol::*;
 use spring_dvs::model::Netspace;
+use spring_dvs::protocol::*;
+
 
 mod netspace;
 mod service;
 mod protocol;
-
+mod config;
+mod unit_test_env;
 
 fn main() {
     println!("Spring GSN Root Node");
-    match service::start_dvsp() {
+    let mut config = config::Config::new();
+    
+    config.live_test = true;
+    match service::start_dvsp(&config) {
     	Ok(_) => println!("Service finished OK"),
     	Err(_) => println!("Service finished with error"),
     }

@@ -317,6 +317,7 @@ mod tests {
 			`status`	INTEGER,
 			`types`	INTEGER
 		);
+
 		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types) VALUES (1,'esusx','greenman.zu','192.168.1.1',1,1,1);
 		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types) VALUES (2,'cci','dvsnode.greenman.zu','192.168.1.2',2,1,2);
 		").unwrap();

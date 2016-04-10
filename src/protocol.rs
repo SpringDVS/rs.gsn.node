@@ -1,9 +1,13 @@
 use std::net::{SocketAddr, SocketAddrV4};
 use netspace::*;
+use config::Config;
+use unit_test_env::reset_live_test_env;
+
 use spring_dvs::formats::*;
+
 pub use spring_dvs::serialise::{NetSerial};
 pub use spring_dvs::protocol::{Packet, PacketHeader};
-use spring_dvs::protocol::{FrameRegister, FrameStateUpdate, FrameNodeRequest, FrameTypeRequest};
+use spring_dvs::protocol::{FrameRegister, FrameStateUpdate, FrameNodeRequest, FrameTypeRequest, FrameUnitTest};
 use spring_dvs::protocol::{FrameResponse, FrameNodeInfo, FrameNodeStatus, FrameNetwork};
 
 
@@ -18,8 +22,10 @@ fn forge_response_packet(rcode: DvspRcode) -> Result<Packet, Failure> {
 	forge_packet(DvspMsgType::GsnResponse, &FrameResponse::new(rcode))
 }
 
-pub fn process_packet(bytes: &[u8], address: &SocketAddr) -> Vec<u8> {
 
+
+pub fn process_packet(bytes: &[u8], address: &SocketAddr, config: Config, nio: &NetspaceIo) -> Vec<u8> {
+	
 	let mut packet : Packet = match  Packet::deserialise(&bytes) {
 				Ok(p) => p,
 				Err(_) => { 
@@ -39,12 +45,14 @@ pub fn process_packet(bytes: &[u8], address: &SocketAddr) -> Vec<u8> {
 
 	match packet.header().msg_type {
 		
-		DvspMsgType::GsnRegistration => process_frame_register(&packet),
-		DvspMsgType::GsnState => process_frame_state_update(&packet, &address),
-		DvspMsgType::GsnNodeInfo => process_frame_node_info(&packet),
-		DvspMsgType::GsnNodeStatus => process_frame_node_status(&packet),
-		DvspMsgType::GsnArea => process_frame_area(),
-		DvspMsgType::GsnTypeRequest => process_frame_type_request(&packet),
+		DvspMsgType::GsnRegistration => process_frame_register(&packet,&nio),
+		DvspMsgType::GsnState => process_frame_state_update(&packet, &address,&nio),
+		DvspMsgType::GsnNodeInfo => process_frame_node_info(&packet,&nio),
+		DvspMsgType::GsnNodeStatus => process_frame_node_status(&packet,&nio),
+		DvspMsgType::GsnArea => process_frame_area(&nio),
+		DvspMsgType::GsnTypeRequest => process_frame_type_request(&packet,&nio),
+		
+		DvspMsgType::UnitTest => process_frame_unit_test(&packet, &config, &nio),
 		
 		_ => match forge_response_packet(DvspRcode::MalformedContent) {
 			Ok(p) => p.serialise(),
@@ -53,8 +61,7 @@ pub fn process_packet(bytes: &[u8], address: &SocketAddr) -> Vec<u8> {
 	}
 }
 
-fn process_frame_register(packet: &Packet) -> Vec<u8> {
-	let nio = NetspaceIo::new("gsn.db");
+fn process_frame_register(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
 	let frame : FrameRegister = match packet.content_as::<FrameRegister>() {
 		Ok(f) => f,
 		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
@@ -103,9 +110,9 @@ fn unregister_node(node: &Node, nio: &NetspaceIo) -> Vec<u8> {
 	}
 }
 
-fn process_frame_state_update(packet: &Packet, address: &SocketAddr) -> Vec<u8> {
+fn process_frame_state_update(packet: &Packet, address: &SocketAddr, nio: &NetspaceIo) -> Vec<u8> {
 
-	let nio = NetspaceIo::new("gsn.db");
+	
 	let frame : FrameStateUpdate = match packet.content_as::<FrameStateUpdate>() {
 		Ok(f) => f,
 		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
@@ -134,8 +141,7 @@ fn process_frame_state_update(packet: &Packet, address: &SocketAddr) -> Vec<u8> 
 }
 
 
-fn process_frame_node_info(packet: &Packet) -> Vec<u8> {
-	let nio = NetspaceIo::new("gsn.db");
+fn process_frame_node_info(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
 	let frame : FrameNodeRequest = match packet.content_as::<FrameNodeRequest>() {
 		Ok(f) => f,
 		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
@@ -157,8 +163,7 @@ fn process_frame_node_info(packet: &Packet) -> Vec<u8> {
 }
 
 
-fn process_frame_node_status(packet: &Packet) -> Vec<u8> {
-	let nio = NetspaceIo::new("gsn.db");
+fn process_frame_node_status(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
 	let frame : FrameNodeRequest = match packet.content_as::<FrameNodeRequest>() {
 		Ok(f) => f,
 		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
@@ -175,16 +180,15 @@ fn process_frame_node_status(packet: &Packet) -> Vec<u8> {
 }
 
 
-fn process_frame_area() -> Vec<u8> {
-	let nio = NetspaceIo::new("gsn.db");
+fn process_frame_area(nio: &NetspaceIo) -> Vec<u8> {
 	let v = nio.gsn_nodes();
 	
 	let frame = FrameNetwork::new(&nodes_to_node_list(&v));
 	forge_packet(DvspMsgType::GsnResponseNetwork, &frame).unwrap().serialise()
 }
 
-fn process_frame_type_request(packet: &Packet) -> Vec<u8> {
-	let nio = NetspaceIo::new("gsn.db");
+fn process_frame_type_request(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
+	
 	let f : FrameTypeRequest = match packet.content_as::<FrameTypeRequest>() {
 		Ok(f) => f,
 		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
@@ -194,4 +198,26 @@ fn process_frame_type_request(packet: &Packet) -> Vec<u8> {
 	
 	let frame = FrameNetwork::new(&nodes_to_node_list(&v));
 	forge_packet(DvspMsgType::GsnResponseNetwork, &frame).unwrap().serialise()
+}
+
+
+
+
+// --------------------- UNIT TESTING MANAGEMENT -------------------
+
+fn process_frame_unit_test(packet: &Packet, config: &Config, nio: &NetspaceIo) -> Vec<u8> {
+	if config.live_test == false { return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise() }
+	let frame : FrameUnitTest = match packet.content_as::<FrameUnitTest>() {
+		Ok(f) => f,
+		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
+	};
+	
+	match frame.action {
+		UnitTestAction::Reset => { 
+			reset_live_test_env(nio, config);
+			forge_response_packet(DvspRcode::Ok).unwrap().serialise()
+		}
+		_ => forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
+	}
+	
 }
