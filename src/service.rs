@@ -28,7 +28,8 @@ pub fn start_dvsp(config: &Config) -> Result<Success,Failure> {
 
 	let mut event = EpollEvent {
 		data: sfd as u64,
-		events: (event_type::EPOLLIN | event_type::EPOLLET | event_type::EPOLLRDHUP)
+		//events: (event_type::EPOLLIN | event_type::EPOLLET | event_type::EPOLLRDHUP)
+		events: (event_type::EPOLLIN | event_type::EPOLLRDHUP)
 	};
 	
 	match epoll::ctl(epfd, ctl_op::ADD, sfd, &mut event) {
