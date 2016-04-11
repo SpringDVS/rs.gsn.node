@@ -1,7 +1,7 @@
 use std::net::{SocketAddr, SocketAddrV4};
 use netspace::*;
 use config::Config;
-use unit_test_env::reset_live_test_env;
+use unit_test_env::{reset_live_test_env,update_address_test_env};
 
 use spring_dvs::formats::*;
 
@@ -67,6 +67,7 @@ fn process_frame_register(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
 		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
 	};
 
+	// Cracking out -- Check format!!!!!!!!
 	let mut node = Node::from_node_string( 
 		&nodestring_from_node_register( &frame.nodereg, &packet.header().addr_orig )
 	).unwrap();
@@ -213,10 +214,16 @@ fn process_frame_unit_test(packet: &Packet, config: &Config, nio: &NetspaceIo) -
 	};
 	
 	match frame.action {
-		UnitTestAction::Reset => { 
+		UnitTestAction::Reset => {
 			reset_live_test_env(nio, config);
 			forge_response_packet(DvspRcode::Ok).unwrap().serialise()
-		}
+		},
+		
+		UnitTestAction::UpdateAddress => {
+			update_address_test_env(nio, &frame.extra, config);
+			forge_response_packet(DvspRcode::Ok).unwrap().serialise()
+		},
+
 		_ => forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
 	}
 	

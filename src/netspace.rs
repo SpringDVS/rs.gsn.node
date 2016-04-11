@@ -78,6 +78,7 @@ impl NetspaceIo {
 		
 	}
 	
+	#[allow(dead_code)]
 	fn debug_print_rows(&self, statement: &mut Statement) {
 		
 		while let State::Row = statement.next().unwrap() {
@@ -92,7 +93,9 @@ impl NetspaceIo {
 			    			
 		}
 		
-		statement.reset();
+		match statement.reset() {
+			_ => return
+		};
 		
 	}
 }
