@@ -45,7 +45,7 @@ pub fn process_packet(bytes: &[u8], address: &SocketAddr, config: Config, nio: &
 
 	match packet.header().msg_type {
 		
-		DvspMsgType::GsnRegistration => process_frame_register(&packet,&nio),
+		DvspMsgType::GsnRegistration => process_frame_register(&packet,&address,&nio),
 		DvspMsgType::GsnState => process_frame_state_update(&packet, &address,&nio),
 		DvspMsgType::GsnNodeInfo => process_frame_node_info(&packet,&nio),
 		DvspMsgType::GsnNodeStatus => process_frame_node_status(&packet,&nio),
@@ -61,7 +61,7 @@ pub fn process_packet(bytes: &[u8], address: &SocketAddr, config: Config, nio: &
 	}
 }
 
-fn process_frame_register(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
+fn process_frame_register(packet: &Packet, address: &SocketAddr, nio: &NetspaceIo) -> Vec<u8> {
 	let frame : FrameRegister = match packet.content_as::<FrameRegister>() {
 		Ok(f) => f,
 		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
@@ -87,9 +87,27 @@ fn process_frame_register(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
 
 	} else {
 
-		match registered {
-			false => forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise(),
-			true => unregister_node(&node, &nio)
+
+		// Check the IP Address
+		let check_node : Node = match nio.gsn_node_by_springname(node.springname()) {
+			Ok(n) => n,
+			Err(_) => return forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise()
+		};
+		
+		
+		let ipv4 = match address {
+			&SocketAddr::V4(addr) => { addr.ip().octets() },
+			_ => { [0,0,0,0] } // ToDo: Handle IPv6
+		};
+		
+		if check_node.address() != ipv4 {
+			forge_response_packet(DvspRcode::NetworkError).unwrap().serialise()
+		} else {
+		
+			match registered {
+				false => forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise(),
+				true => unregister_node(&node, &nio)
+			}
 		}
 
 	}
