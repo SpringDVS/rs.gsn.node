@@ -168,7 +168,11 @@ fn process_frame_node_info(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
 		Ok(f) => f,
 		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
 	};
-	let shi = String::from_utf8(frame.shi).unwrap();
+
+	let shi = match String::from_utf8(frame.shi) {
+		Ok(s) => s,
+		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
+	};
 	
 	// ToDo:
 	//	- Hostname
@@ -190,7 +194,11 @@ fn process_frame_node_status(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
 		Ok(f) => f,
 		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
 	};
-	let shi = String::from_utf8(frame.shi).unwrap();
+	let shi = match String::from_utf8(frame.shi) {
+		Ok(s) => s,
+		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
+	};
+	
 	let node : Node = match nio.gsn_node_by_springname(&shi) {
 		Ok(n) => n,
 		Err(_) => return forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise()
