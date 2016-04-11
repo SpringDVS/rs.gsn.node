@@ -27,7 +27,10 @@ fn forge_response_packet(rcode: DvspRcode) -> Result<Packet, Failure> {
 pub fn process_packet(bytes: &[u8], address: &SocketAddr, config: Config, nio: &NetspaceIo) -> Vec<u8> {
 	
 	let mut packet : Packet = match  Packet::deserialise(&bytes) {
-				Ok(p) => p,
+				Ok(p) => { 
+					if config.live_test { println!("{} | {:?}", address, p.header().msg_type) }
+					p
+				},
 				Err(_) => { 
 					println!("Deserialise Packet error");
 					return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()

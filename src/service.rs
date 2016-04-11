@@ -89,7 +89,7 @@ fn epoll_wait(epfd: RawFd, socket: UdpSocket, config: Config) {
 						Ok(s) => s
 					};
 	
-	       			println!("From {}", from);
+
 	
 	            	let bytes = process_packet(&bytes[0..sz], &from, config, &nio);
 	            	match socket.send_to(bytes.as_slice(), from) {
