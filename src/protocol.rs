@@ -74,6 +74,7 @@ fn process_frame_register(packet: &Packet, address: &SocketAddr, nio: &NetspaceI
 	};
 
 	// Cracking out -- Check format!!!!!!!!
+	// if format is wrong, server panics
 	let mut node = Node::from_node_string( 
 		&nodestring_from_node_register( &frame.nodereg, &packet.header().addr_orig )
 	).unwrap();
