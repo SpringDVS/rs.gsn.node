@@ -5,7 +5,7 @@ use spring_dvs::serialise::{NetSerial};
 
 use service::chain_request;
 use netspace::NetspaceIo;
-
+use node_config::node_springname;
 
 
 pub enum ResolutionResult {
@@ -22,6 +22,7 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 	};
 
 	
+	
 	if url.gtn() != "" {
 		if url.glq() != "" {
 			// Handle geolocation here
@@ -36,7 +37,8 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 	
 	// Check to see if we are one and the same with the top GSN
 	if url.route().len() > 1 {
-		if url.route().last().unwrap() == "esusx" {
+		
+		if url.route().last().unwrap().as_ref() == node_springname() {
 			url.route_mut().pop();
 		}
 	}
