@@ -5,6 +5,11 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::net::UdpSocket;
 use std::thread;
 
+use spring_dvs::protocol::Ipv4;
+use spring_dvs::formats::ipv4_to_str_address;
+
+
+
 use netspace::*;
 
 use self::epoll::*;
@@ -106,16 +111,31 @@ fn epoll_wait(epfd: RawFd, socket: UdpSocket, config: Config) {
     }
 }
 
-pub fn chain_request(bytes: Vec<u8>) -> Result<Vec<u8>, Failure> {
-	
+// ToDo clean this lot up -- better failure states
+pub fn chain_request(bytes: Vec<u8>, target: &Node) -> Result<Vec<u8>, Failure> {
+	// ToDo: Handle HTTP service layers
+	let address : String = match target.service() {
+		DvspService::Dvsp => format!("{}:55301", ipv4_to_str_address(&target.address())),
+		_ => return Err(Failure::InvalidArgument)
+	};
+
 	let socket = match UdpSocket::bind("0.0.0.0:0") {
 			Ok(s) => s,
 			Err(_) => return Err(Failure::InvalidArgument)
 	};
+
+	match socket.send_to(bytes.as_ref(), address.as_str()) {
+		Ok(_) =>{ },
+		_ => return Err(Failure::InvalidArgument),
+	}
+
+	let mut buf = [0;768];
+	let (sz, _) = match socket.recv_from(&mut buf) {
+		Ok(t) => t,
+		_ => { return Err(Failure::InvalidArgument) }
+	};
 	
-	
-	
-	Ok(Vec::new())
+	Ok(Vec::from(&buf[0..sz]))
 }
 
 
