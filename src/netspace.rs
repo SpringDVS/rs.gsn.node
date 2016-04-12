@@ -1,14 +1,14 @@
-extern crate spring_dvs;
+
 extern crate sqlite;
 
 
+pub use spring_dvs::enums::{DvspNodeType,DvspNodeState,DvspService,Failure,Success};
+use spring_dvs::protocol::{Ipv4,NodeTypeField, u8_service_type, u8_status_type};
+use spring_dvs::formats::{ipv4_to_str_address,str_address_to_ipv4};
+
+pub use spring_dvs::model::{Netspace,Node};
 
 use self::sqlite::{State,Statement};
-
-pub use self::spring_dvs::model::{Netspace,Node};
-pub use self::spring_dvs::enums::*;
-use self::spring_dvs::protocol::{Ipv4,NodeTypeField, u8_service_type, u8_status_type};
-use self::spring_dvs::formats::{ipv4_to_str_address,str_address_to_ipv4};
 
 
 pub struct NetspaceIo {
