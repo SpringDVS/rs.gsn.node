@@ -243,17 +243,18 @@ fn process_frame_resolution(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
 	};
 	
 	match resolve_url(&frame.url, nio) {
-		ResolutionResult::Err(_) => forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise(),
+		ResolutionResult::Err(_) => forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise(),
 		ResolutionResult::Node(n) => {
 			let node : Node = n;
 			let frame = FrameNodeInfo::new(node.types(), node.service(), node.address(), &node.to_node_register());
-			forge_packet(DvspMsgType::GsnNodeInfo, &frame).unwrap().serialise()
+			forge_packet(DvspMsgType::GsnResponseNodeInfo, &frame).unwrap().serialise()
 		},
 		ResolutionResult::Network(nodes) => {
 			let frame =	FrameNetwork::new(&nodes_to_node_list(&nodes));
 			
 			forge_packet(DvspMsgType::GsnResponseNetwork, &frame).unwrap().serialise()
-		}
+		},
+		ResolutionResult::Chain(p) => p,
 	}
 	
 }
