@@ -51,14 +51,17 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 			Err(_) => ResolutionResult::Err(Failure::InvalidArgument)
 		}
 
-	} else {
+	} else if url.route().len() > 1 {
 
 		println!("Pass through");
 		
 		// Here we can implement caching to reduce the amount of
 		// request chaining, so reduce load on network and also
 		// provide faster results for regular requests
-		
+		let node = match nio.gsn_node_by_springname(url.route().last().unwrap().as_ref()) {
+			Ok(n) => n,
+			Err(_) => return ResolutionResult::Err(Failure::InvalidArgument)
+		};
 		url.route_mut().pop();
 		let frame  = FrameResolution::new(&url.to_string());
 		let mut p = Packet::new(DvspMsgType::GsnResolution);
@@ -66,10 +69,12 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 		
 		// ToDo:  Handle timeout from bad route
 		
-		match chain_request(p.serialise()) {
+		match chain_request(p.serialise(), &node) {
 			Ok(bytes) => ResolutionResult::Chain(bytes),
 			Err(f) => ResolutionResult::Err(f),
 		}
 
+	} else {
+		ResolutionResult::Err(Failure::InvalidArgument)
 	}
 }
