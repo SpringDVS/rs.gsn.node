@@ -7,6 +7,15 @@ use service::chain_request;
 use netspace::NetspaceIo;
 use node_config::node_springname;
 
+/*
+ * ToDo:
+ * The resolution and request chaining should not be
+ * trying to resolve the IP of a Geosub directly, but
+ * check which nodes are acting as roots for the GSN
+ * and resolve those individual nodes.
+ * 
+ * The Springname is NOT the GSN
+ */
 
 pub enum ResolutionResult {
 	Err(Failure),
@@ -38,6 +47,8 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 	// Check to see if we are one and the same with the top GSN
 	if url.route().len() > 1 {
 		
+		// Note -- we should be checking the GSN of this node,
+		//         NOT the sringname
 		if url.route().last().unwrap().as_ref() == node_springname() {
 			url.route_mut().pop();
 		}
@@ -46,6 +57,8 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 	if url.route().len() == 1 {
 		
 		let node_str = url.route().last().unwrap();
+		// This might be a node, this might be a GSN --
+		// We need to handle for both
 		match nio.gsn_node_by_springname(&node_str) {
 			Ok(n) => ResolutionResult::Node(n),
 			Err(_) => ResolutionResult::Err(Failure::InvalidArgument)
@@ -58,6 +71,11 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 		// Here we can implement caching to reduce the amount of
 		// request chaining, so reduce load on network and also
 		// provide faster results for regular requests
+
+		// Wrong, Wrong, Wrong
+		// We want to get a root node for the supplied GSN,
+		// We DON'T want to resolve a node based on the GSN
+		// name
 		let node = match nio.gsn_node_by_springname(url.route().last().unwrap().as_ref()) {
 			Ok(n) => n,
 			Err(_) => return ResolutionResult::Err(Failure::InvalidArgument)

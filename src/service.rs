@@ -21,6 +21,13 @@ use ::unit_test_env::setup_live_test_env;
 
 use ::protocol::process_packet;
 
+/*
+ * ToDo:
+ * There is not timeout handling going on
+ * The server could potentially hang until
+ * fossil fuel runs out.
+ */
+
 pub fn start_dvsp(config: &Config) -> Result<Success,Failure> {
 	
 	let socket = match UdpSocket::bind("0.0.0.0:55301") {
