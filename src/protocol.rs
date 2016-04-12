@@ -4,11 +4,13 @@ use config::Config;
 use unit_test_env::{reset_live_test_env,update_address_test_env};
 
 use spring_dvs::formats::*;
+use spring_dvs::enums::{DvspRcode,DvspMsgType,UnitTestAction};
 
 pub use spring_dvs::serialise::{NetSerial};
 pub use spring_dvs::protocol::{Packet, PacketHeader};
-use spring_dvs::protocol::{FrameRegister, FrameStateUpdate, FrameNodeRequest, FrameTypeRequest, FrameUnitTest};
+use spring_dvs::protocol::{FrameRegister, FrameStateUpdate, FrameNodeRequest, FrameTypeRequest, FrameResolution, FrameUnitTest};
 use spring_dvs::protocol::{FrameResponse, FrameNodeInfo, FrameNodeStatus, FrameNetwork};
+use resolution::{resolve_url,ResolutionResult};
 
 
 
@@ -49,6 +51,7 @@ pub fn process_packet(bytes: &[u8], address: &SocketAddr, config: Config, nio: &
 	match packet.header().msg_type {
 		
 		DvspMsgType::GsnRegistration => process_frame_register(&packet,&address,&nio),
+		DvspMsgType::GsnResolution => process_frame_resolution(&packet,&nio),
 		DvspMsgType::GsnState => process_frame_state_update(&packet, &address,&nio),
 		DvspMsgType::GsnNodeInfo => process_frame_node_info(&packet,&nio),
 		DvspMsgType::GsnNodeStatus => process_frame_node_status(&packet,&nio),
@@ -232,6 +235,28 @@ fn process_frame_type_request(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
 	forge_packet(DvspMsgType::GsnResponseNetwork, &frame).unwrap().serialise()
 }
 
+
+fn process_frame_resolution(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
+	let frame : FrameResolution = match packet.content_as::<FrameResolution>() {
+		Ok(f) => f,
+		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
+	};
+	
+	match resolve_url(&frame.url, nio) {
+		ResolutionResult::Err(_) => forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise(),
+		ResolutionResult::Node(n) => {
+			let node : Node = n;
+			let frame = FrameNodeInfo::new(node.types(), node.service(), node.address(), &node.to_node_register());
+			forge_packet(DvspMsgType::GsnNodeInfo, &frame).unwrap().serialise()
+		},
+		ResolutionResult::Network(nodes) => {
+			let frame =	FrameNetwork::new(&nodes_to_node_list(&nodes));
+			
+			forge_packet(DvspMsgType::GsnResponseNetwork, &frame).unwrap().serialise()
+		}
+	}
+	
+}
 
 
 
