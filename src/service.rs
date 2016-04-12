@@ -106,6 +106,18 @@ fn epoll_wait(epfd: RawFd, socket: UdpSocket, config: Config) {
     }
 }
 
+pub fn chain_request(bytes: Vec<u8>) -> Result<Vec<u8>, Failure> {
+	
+	let socket = match UdpSocket::bind("0.0.0.0:0") {
+			Ok(s) => s,
+			Err(_) => return Err(Failure::InvalidArgument)
+	};
+	
+	
+	
+	Ok(Vec::new())
+}
+
 
 mod tests {
 	extern crate spring_dvs;
