@@ -13,6 +13,7 @@ mod netspace;
 mod service;
 mod protocol;
 mod config;
+mod resolution;
 mod unit_test_env;
 
 fn main() {
