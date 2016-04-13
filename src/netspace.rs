@@ -10,6 +10,13 @@ pub use spring_dvs::model::{Netspace,Node};
 
 use self::sqlite::{State,Statement};
 
+/*
+ * Fix:
+ * Using `priority` and `service` as interchangable in the generation of
+ * of nodes from Database results is very sketchy and will eventually 
+ * lead to ruin!
+ */
+  
 
 pub struct NetspaceIo {
 	db: sqlite::Connection,
@@ -38,6 +45,7 @@ impl NetspaceIo {
 				None => return Err(Failure::InvalidBytes)
 			};
 
+		
 		let status =  match u8_status_type(statement.read::<i64>(5).unwrap() as u8) {
 				Some(op) => op,
 				None => return Err(Failure::InvalidBytes)
@@ -282,6 +290,75 @@ impl Netspace for NetspaceIo {
 			Err(_) => Err(Failure::InvalidArgument)   
 		}
 	}
+	
+	fn gtn_geosub_root_nodes(&self, gsn: &str) -> Vec<Node> {
+		let mut statement = self.db.prepare("
+	    	SELECT * FROM `geotop_netspace`
+	    	WHERE geosub = ?
+	    	ORDER BY priority ASC
+			").unwrap();
+		
+		statement.bind(1, &sqlite::Value::String( String::from(gsn) ) ).unwrap();
+			
+		self.vector_from_statement(&mut statement)		
+	}
+	
+	
+	fn gtn_geosub_node_by_springname(&self, name: &str, gsn: &str) -> Result<Node,Failure> {
+		let mut statement = self.db.prepare("
+    	SELECT * FROM geotop_netspace 
+    	WHERE springname = ?
+    	AND geosub = ?
+		").unwrap();
+
+		statement.bind(1, &sqlite::Value::String( String::from(name) ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( String::from(gsn) ) ).unwrap();
+		
+		self.node_from_statement(&mut statement)
+	}
+
+	fn gtn_geosub_register_node(&self, node: &Node, gsn: &str) -> Result<Success,Failure> {
+		if self.gtn_geosub_node_by_springname(&node.springname(), &gsn).is_ok() {
+			return Err(Failure::Duplicate)
+		}
+		
+		let mut statement = self.db.prepare(
+						"INSERT INTO 
+						`geotop_netspace` 
+						(springname,hostname,address,service,priority, geosub) 
+						VALUES (?,?,?,?,?,?)").unwrap();
+		statement.bind(1, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( String::from(node.hostname()) ) ).unwrap();
+		statement.bind(3, &sqlite::Value::String( ipv4_to_str_address(&node.address() ) ) ).unwrap();
+		statement.bind(4, &sqlite::Value::Integer( node.service() as i64 ) ).unwrap();
+		statement.bind(5, &sqlite::Value::Integer( 1 as i64)).unwrap();
+		statement.bind(6, &sqlite::Value::String( String::from(gsn) )).unwrap();
+			
+		match statement.next() {
+			Ok(_) => Ok(Success::Ok),
+			Err(_) => Err(Failure::InvalidArgument)   
+		}	
+	}
+
+	fn gtn_geosub_unregister_node(&self, node: &Node, gsn: &str) -> Result<Success,Failure> {
+
+		if self.gtn_geosub_node_by_springname(&node.springname(), &gsn).is_err() {
+			return Err(Failure::InvalidArgument)
+		}
+
+		let mut statement = self.db.prepare(
+						"DELETE FROM `geotop_netspace` 
+						WHERE springname = ?
+						AND geosub = ?").unwrap();
+
+		statement.bind(1, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( String::from(gsn) ) ).unwrap();
+
+		match statement.next() {
+			Ok(_) => Ok(Success::Ok),
+			Err(_) => Err(Failure::InvalidArgument)   
+		}				
+	}
 }
 
 pub fn netspace_routine_is_registered(node: &Node, nio: &NetspaceIo) -> bool {
@@ -320,9 +397,21 @@ mod tests {
 			`status`	INTEGER,
 			`types`	INTEGER
 		);
+		
+		CREATE TABLE `geotop_netspace` (
+			`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
+			`springname`	TEXT,
+			`hostname`	TEXT,
+			`address`	TEXT,
+			`service`	INTEGER,
+			`priority`	INTEGER,
+			`geosub`	TEXT
+		);
 
 		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types) VALUES (1,'esusx','greenman.zu','192.168.1.1',1,1,1);
 		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types) VALUES (2,'cci','dvsnode.greenman.zu','192.168.1.2',2,1,2);
+		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub) VALUES (1,'springA', 'greenman', '192.168.1.2', 1, 2, 'esusx');
+		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub) VALUES (2,'springB', 'blueman', '192.168.1.3', 2, 1, 'esusx');
 		").unwrap();
 	}
 
@@ -554,6 +643,106 @@ mod tests {
 		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
 	}
 	
+	
+	#[test]
+	fn ts_netspaceio_gtn_geosub_root_nodes_p() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let v = nsio.gtn_geosub_root_nodes("esusx");
+		assert_eq!(2, v.len());
+		
+		assert_eq!("springB", v[0].springname());
+		assert_eq!([192,168,1,3], v[0].address());
+		assert_eq!(DvspService::Http, v[0].service());
+		
+		assert_eq!("greenman", v[1].hostname());
+		assert_eq!([192,168,1,2], v[1].address());
+		assert_eq!(DvspService::Dvsp, v[1].service());
+	}
+	
+	#[test]
+	fn ts_netspaceio_gtn_geosub_root_nodes_f() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let v = nsio.gtn_geosub_root_nodes("void");
+		assert_eq!(0, v.len());
+	}
+	
+	#[test]
+	fn ts_netspaceio_gtn_geosub_node_by_springname_p() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let r = nsio.gtn_geosub_node_by_springname("springB", "esusx");
+		
+		assert!(r.is_ok());
+		
+		
+		assert_eq!("springB", r.unwrap().springname());
+	}
+
+	#[test]
+	fn ts_netspaceio_gtn_geosub_node_by_springname_f() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let r = nsio.gtn_geosub_node_by_springname("springC", "esusx");
+		
+		assert!(r.is_err());
+	}
+	
+	#[test]
+	fn ts_netspaceio_gtn_geosub_register_node_p() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let mut node = Node::from_node_string("springZ,hostZ,192.168.172.1").unwrap();
+		node.update_service(DvspService::Dvsp);
+		assert!(nsio.gtn_geosub_register_node(&node, "testnet").is_ok());
+		
+		let r = nsio.gtn_geosub_node_by_springname("springZ", "testnet");
+		assert!(r.is_ok());
+		
+		let n = r.unwrap();
+		
+		assert_eq!("springZ", n.springname());
+		assert_eq!([192,168,172,1], n.address());
+		assert_eq!(DvspService::Dvsp, n.service());		
+		
+		
+	}
+	
+	#[test]
+	fn ts_netspaceio_gtn_geosub_register_node_f() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		
+		let node = Node::from_node_string("springB,hostZ,192.168.172.1").unwrap();
+		assert!(nsio.gtn_geosub_register_node(&node, "esusx").is_err());
+	}
+	
+	#[test]
+	fn ts_netspaceio_gtn_geosub_unregister_node_p() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		let node = Node::from_springname("springA").unwrap();
+		let r = nsio.gtn_geosub_unregister_node(&node, "esusx");
+		
+		assert!(r.is_ok());
+		
+		assert!(nsio.gtn_geosub_node_by_springname("springC", "esusx").is_err());
+	}
+	#[test]
+	fn ts_netspaceio_gtn_geosub_unregister_node_f() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		let node = Node::from_springname("springC").unwrap();
+		assert!(nsio.gtn_geosub_unregister_node(&node, "esusx").is_err());
+		assert!(nsio.gtn_geosub_unregister_node(&node, "esusxs").is_err());
+
+	}
 		#[test]
 	fn ts_netspace_routine_is_registered_p() {
 		let nsio = NetspaceIo::new(":memory:");
