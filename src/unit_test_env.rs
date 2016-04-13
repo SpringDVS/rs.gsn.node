@@ -1,8 +1,9 @@
 extern crate sqlite;
 use self::sqlite::{State,Statement};
 
-use spring_dvs::model::Node;
-use spring_dvs::formats::ipv4_to_str_address;
+use spring_dvs::model::{Node,Netspace};
+use spring_dvs::formats::{ipv4_to_str_address, geosub_from_node_register_gtn};
+
 use ::netspace::NetspaceIo;
 use ::config::Config;
 
@@ -25,7 +26,17 @@ pub fn setup_live_test_env(nio: &NetspaceIo) {
 			`postcode`	TEXT,
 			`county`	TEXT,
 			`geosub`	TEXT
-		);").unwrap();
+		);
+		CREATE TABLE `geotop_netspace` (
+			`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
+			`springname`	TEXT,
+			`hostname`	TEXT,
+			`address`	TEXT,
+			`service`	INTEGER,
+			`priority`	INTEGER,
+			`geosub`	TEXT
+		);
+		").unwrap();
 }
 
 pub fn reset_live_test_env(nio: &NetspaceIo, config: &Config) {
@@ -55,4 +66,15 @@ pub fn update_address_test_env(nio: &NetspaceIo, nodestring: &str , config: &Con
 	match statement.next() {
 		_ => {},   
 	}
+}
+
+pub fn add_geosub_root_test_env(nio: &NetspaceIo, nodereggtn: &str, config: &Config) {
+	if config.live_test == false { return }
+	let node = Node::from_node_string(nodereggtn).unwrap();
+	let gsn = match geosub_from_node_register_gtn(nodereggtn) {
+		Ok(g) => g,
+		_ => return,
+	};
+	
+	nio.gtn_geosub_register_node(&node, &gsn).unwrap();
 }

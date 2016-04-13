@@ -1,14 +1,14 @@
 use std::net::{SocketAddr, SocketAddrV4};
 use netspace::*;
 use config::Config;
-use unit_test_env::{reset_live_test_env,update_address_test_env};
+use unit_test_env::{reset_live_test_env,update_address_test_env,add_geosub_root_test_env};
 
 use spring_dvs::formats::*;
 use spring_dvs::enums::{DvspRcode,DvspMsgType,UnitTestAction};
 
 pub use spring_dvs::serialise::{NetSerial};
 pub use spring_dvs::protocol::{Packet, PacketHeader};
-use spring_dvs::protocol::{FrameRegister, FrameStateUpdate, FrameNodeRequest, FrameTypeRequest, FrameResolution, FrameUnitTest};
+use spring_dvs::protocol::{FrameRegister, FrameStateUpdate, FrameNodeRequest, FrameTypeRequest, FrameResolution, FrameUnitTest, FrameGeosub, FrameRegisterGtn};
 use spring_dvs::protocol::{FrameResponse, FrameNodeInfo, FrameNodeStatus, FrameNetwork};
 use resolution::{resolve_url,ResolutionResult};
 
@@ -57,6 +57,10 @@ pub fn process_packet(bytes: &[u8], address: &SocketAddr, config: Config, nio: &
 		DvspMsgType::GsnNodeStatus => process_frame_node_status(&packet,&nio),
 		DvspMsgType::GsnArea => process_frame_area(&nio),
 		DvspMsgType::GsnTypeRequest => process_frame_type_request(&packet,&nio),
+		
+		
+		DvspMsgType::GtnRegistration => process_frame_register_gtn(&packet,&address,&nio),
+		DvspMsgType::GtnGeosubNodes => process_frame_geosub(&packet,&address,&nio),
 		
 		DvspMsgType::UnitTest => process_frame_unit_test(&packet, &config, &nio),
 		
@@ -262,6 +266,67 @@ fn process_frame_resolution(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
 
 
 
+
+fn process_frame_register_gtn(packet: &Packet, address: &SocketAddr, nio: &NetspaceIo) -> Vec<u8> {
+	
+	let ipv4 = match address {
+		&SocketAddr::V4(addr) => { addr.ip().octets() },
+		_ => { [0,0,0,0] } // ToDo: Handle IPv6
+	};
+	
+	
+	
+	let frame : FrameRegisterGtn = match packet.content_as::<FrameRegisterGtn>() {
+		Ok(f) => f,
+		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
+	};
+	
+	let node = Node::from_node_string(&frame.nodereg).unwrap();
+	
+	
+	let gsn = match geosub_from_node_register_gtn(&frame.nodereg) {
+		Ok(g) => g,
+		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise() 
+	};
+	
+	if netspace_routine_is_address_gsn_root(&ipv4, &gsn, &nio) == false {
+		return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
+	}
+	
+	match frame.register {
+		true => register_gtn_node(&node, &gsn, &nio),
+		false => unregister_gtn_node(&node, &gsn, &nio),
+	}
+}
+
+
+fn register_gtn_node(node: &Node, gsn: &str, nio: &NetspaceIo) -> Vec<u8> {
+	match nio.gtn_geosub_register_node(node, gsn) {
+		Ok(_) => forge_response_packet(DvspRcode::Ok).unwrap().serialise(),
+		Err(_) => forge_response_packet(DvspRcode::NetspaceDuplication).unwrap().serialise()
+	}
+}
+
+fn unregister_gtn_node(node: &Node, gsn: &str, nio: &NetspaceIo) -> Vec<u8> {
+	match nio.gtn_geosub_unregister_node(node, gsn) {
+		Ok(_) => forge_response_packet(DvspRcode::Ok).unwrap().serialise(),
+		Err(_) => forge_response_packet(DvspRcode::NetspaceDuplication).unwrap().serialise()
+	}	
+}
+
+fn process_frame_geosub(packet: &Packet, address: &SocketAddr, nio: &NetspaceIo) -> Vec<u8> {
+	let fr : FrameGeosub = match packet.content_as::<FrameGeosub>() {
+		Ok(f) => f,
+		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
+	};
+	
+	let nodes = nio.gtn_geosub_root_nodes(&fr.gsn);
+	
+	let frame =	FrameNetwork::new(&nodes_to_node_list(&nodes));
+			
+	forge_packet(DvspMsgType::GsnResponseNetwork, &frame).unwrap().serialise()
+}
+
 // --------------------- UNIT TESTING MANAGEMENT -------------------
 
 fn process_frame_unit_test(packet: &Packet, config: &Config, nio: &NetspaceIo) -> Vec<u8> {
@@ -282,6 +347,11 @@ fn process_frame_unit_test(packet: &Packet, config: &Config, nio: &NetspaceIo) -
 			forge_response_packet(DvspRcode::Ok).unwrap().serialise()
 		},
 
+		UnitTestAction::AddGeosubRoot => {
+			add_geosub_root_test_env(nio, &frame.extra, config);
+			forge_response_packet(DvspRcode::Ok).unwrap().serialise()
+		},
+		
 		_ => forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
 	}
 	

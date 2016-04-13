@@ -376,6 +376,19 @@ pub fn netspace_routine_is_registered(node: &Node, nio: &NetspaceIo) -> bool {
 
 }
 
+// Fix:
+// Checking by address is unsafe -- this is where we need to 
+// implement certificates after the prototype
+pub fn netspace_routine_is_address_gsn_root(address: &Ipv4, gsn: &str, nio: &NetspaceIo) -> bool {
+	let nodes = nio.gtn_geosub_root_nodes(gsn);
+	
+	for node in nodes {
+		if &node.address() == address { return true }
+	}
+	
+	false
+}
+
 mod tests {
 	
 	extern crate sqlite;
@@ -762,5 +775,24 @@ mod tests {
 		let n = Node::from_node_string("ccid,dvsnode.greenman.zus,192.168.1.2").unwrap();
 		assert_eq!(false, netspace_routine_is_registered(&n, &nsio));
 				
+	}
+	
+	#[test]
+	fn ts_netspace_routine_is_address_gsn_root_p() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		let addr = [192,168,1,2];
+		
+		assert!(netspace_routine_is_address_gsn_root(&addr, "esusx", &nsio));
+	}
+
+	#[test]
+	fn ts_netspace_routine_is_address_gsn_root_f() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		let addr = [192,168,1,8];
+		
+		assert_eq!(false, netspace_routine_is_address_gsn_root(&addr, "esusx", &nsio));
+		assert_eq!(false, netspace_routine_is_address_gsn_root(&addr, "esusxs", &nsio));
 	}
 }
