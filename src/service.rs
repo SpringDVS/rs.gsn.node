@@ -1,8 +1,9 @@
 #![allow(dead_code)]
 extern crate epoll;
 
+use std::io::prelude::*;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::net::UdpSocket;
+use std::net::{UdpSocket,TcpListener,TcpStream};
 use std::thread;
 
 use spring_dvs::protocol::Ipv4;
@@ -56,10 +57,7 @@ pub fn start_dvsp(config: &Config) -> Result<Success,Failure> {
 		epoll_wait(epfd, socket, cfg_clone);	    
 	});
 
-	match s.join() {
-		Ok(_) => println!("Joined thread"),
-		_ => println!("Error on join"),
-	}
+	
 	
 	Ok(Success::Ok)
 }
@@ -116,6 +114,53 @@ fn epoll_wait(epfd: RawFd, socket: UdpSocket, config: Config) {
 	        Err(e) => println!("Error on epoll::wait(): {}", e)
 		}
     }
+}
+
+
+pub fn start_http(config: &Config) -> Result<Success,Failure> {
+	
+	let mut listener = TcpListener::bind("0.0.0.0:55300").unwrap();
+	
+	let s = thread::spawn(move|| {
+		println!("Http Service: Started");
+		for stream in listener.incoming() {
+			
+			match stream {
+				Ok(mut stream) => {
+					
+					println!("Stream");	
+					stream.write(&[1]);
+					let mut buf = [0;4096];
+					
+					let size = match stream.read(&mut buf) {
+						Ok(s) => s,
+						Err(_) => 0
+					};
+					
+					
+					if size > 0 {
+						let s = String::from_utf8_lossy(&buf[0..size]);
+						let atoms : Vec<&str> = s.split("\r\n\r\n").collect();
+						
+						if atoms.len() == 2 {
+							
+						} else {
+							
+						}
+					}
+
+				},
+				Err(_) => { }
+			}
+		}	    
+	});
+	
+	match s.join() {
+		Ok(_) => println!("Joined thread"),
+		_ => println!("Error on join"),
+	}	
+	Ok(Success::Ok)
+	
 }
 
 // ToDo clean this lot up -- better failure states

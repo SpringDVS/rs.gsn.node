@@ -23,7 +23,12 @@ fn main() {
     
     config.live_test = true;
     match service::start_dvsp(&config) {
-    	Ok(_) => println!("Service finished OK"),
+    	Ok(_) => println!("Service OK"),
+    	Err(_) => println!("Service finished with error"),
+    }
+    
+    match service::start_http(&config) {
+    	Ok(_) => println!("Service OK"),
     	Err(_) => println!("Service finished with error"),
     }
 }
