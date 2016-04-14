@@ -5,7 +5,7 @@ use spring_dvs::serialise::{NetSerial};
 
 use service::chain_request;
 use netspace::NetspaceIo;
-use node_config::node_springname;
+use node_config::{node_springname,node_geosub};
 
 /*
  * ToDo:
@@ -36,7 +36,7 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 		if url.glq() != "" {
 			// Handle geolocation here
 			println!("Geoloc");
-			return ResolutionResult::Err(Failure::Duplicate)
+			return ResolutionResult::Err(Failure::InvalidArgument)
 		} else {
 			// We don't need no GTN
 			url.route_mut().pop();
@@ -47,9 +47,8 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 	// Check to see if we are one and the same with the top GSN
 	if url.route().len() > 1 {
 		
-		// Note -- we should be checking the GSN of this node,
-		//         NOT the sringname
-		if url.route().last().unwrap().as_ref() == node_springname() {
+		// Now changed to checking a geosub -- FIXED
+		if url.route().last().unwrap().as_ref() == node_geosub() {
 			url.route_mut().pop();
 		}
 	}
@@ -72,22 +71,20 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 		// request chaining, so reduce load on network and also
 		// provide faster results for regular requests
 
-		// Wrong, Wrong, Wrong
-		// We want to get a root node for the supplied GSN,
-		// We DON'T want to resolve a node based on the GSN
-		// name
-		let node = match nio.gsn_node_by_springname(url.route().last().unwrap().as_ref()) {
-			Ok(n) => n,
-			Err(_) => return ResolutionResult::Err(Failure::InvalidArgument)
-		};
+		let nodes = nio.gtn_geosub_root_nodes(url.route().last().unwrap().as_ref());
 		url.route_mut().pop();
+
+		// Note: For now we'll just use the first one for testing
+		// purposes
+		if(nodes.is_empty() == true) { return ResolutionResult::Err(Failure::InvalidArgument) }
+		println!("Chaining to: {}", nodes[0].to_node_string());
 		let frame  = FrameResolution::new(&url.to_string());
 		let mut p = Packet::new(DvspMsgType::GsnResolution);
 		p.write_content(&frame.serialise().as_ref()).unwrap();
 		
 		// ToDo:  Handle timeout from bad route
 		
-		match chain_request(p.serialise(), &node) {
+		match chain_request(p.serialise(), &nodes[0]) {
 			Ok(bytes) => ResolutionResult::Chain(bytes),
 			Err(f) => ResolutionResult::Err(f),
 		}

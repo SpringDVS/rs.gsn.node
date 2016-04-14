@@ -120,29 +120,31 @@ fn epoll_wait(epfd: RawFd, socket: UdpSocket, config: Config) {
 
 // ToDo clean this lot up -- better failure states
 pub fn chain_request(bytes: Vec<u8>, target: &Node) -> Result<Vec<u8>, Failure> {
+	println!("Chainging: {:?}", target.service());
 	// ToDo: Handle HTTP service layers
 	let address : String = match target.service() {
 		DvspService::Dvsp => format!("{}:55301", ipv4_to_str_address(&target.address())),
 		_ => return Err(Failure::InvalidArgument)
 	};
-
+	println!("Bound");
 	let socket = match UdpSocket::bind("0.0.0.0:0") {
 			Ok(s) => s,
 			Err(_) => return Err(Failure::InvalidArgument)
 	};
-
+	println!("Sending");
 	match socket.send_to(bytes.as_ref(), address.as_str()) {
 		Ok(_) =>{ },
 		_ => return Err(Failure::InvalidArgument),
 	}
-
+	println!("Chain Sent");
 	let mut buf = [0;768];
 	let (sz, _) = match socket.recv_from(&mut buf) {
 		Ok(t) => t,
 		_ => { return Err(Failure::InvalidArgument) }
 	};
-	
+	println!("Chain Recv");
 	Ok(Vec::from(&buf[0..sz]))
+	
 }
 
 

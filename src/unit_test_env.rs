@@ -3,7 +3,7 @@ use self::sqlite::{State,Statement};
 
 use spring_dvs::model::{Node,Netspace};
 use spring_dvs::formats::{ipv4_to_str_address, geosub_from_node_register_gtn};
-
+use spring_dvs::enums::{DvspService};
 use ::netspace::NetspaceIo;
 use ::config::Config;
 
@@ -70,7 +70,8 @@ pub fn update_address_test_env(nio: &NetspaceIo, nodestring: &str , config: &Con
 
 pub fn add_geosub_root_test_env(nio: &NetspaceIo, nodereggtn: &str, config: &Config) {
 	if config.live_test == false { return }
-	let node = Node::from_node_string(nodereggtn).unwrap();
+	let mut node = Node::from_node_string(nodereggtn).unwrap();
+	node.update_service(DvspService::Dvsp);
 	let gsn = match geosub_from_node_register_gtn(nodereggtn) {
 		Ok(g) => g,
 		_ => return,
