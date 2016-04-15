@@ -199,7 +199,7 @@ impl Netspace for NetspaceIo {
 						(springname,hostname,address,service,status,types) 
 						VALUES (?,?,?,?,?,?)").unwrap();
 		statement.bind(1, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
-		statement.bind(2, &sqlite::Value::String( String::from(node.hostname()) ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( node.to_host_resource() ) ).unwrap();
 		statement.bind(3, &sqlite::Value::String( ipv4_to_str_address(&node.address() ) ) ).unwrap();
 		statement.bind(4, &sqlite::Value::Integer( node.service() as i64 ) ).unwrap();
 		statement.bind(5, &sqlite::Value::Integer( node.state() as i64 ) ).unwrap();
@@ -328,7 +328,7 @@ impl Netspace for NetspaceIo {
 						(springname,hostname,address,service,priority, geosub) 
 						VALUES (?,?,?,?,?,?)").unwrap();
 		statement.bind(1, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
-		statement.bind(2, &sqlite::Value::String( String::from(node.hostname()) ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( node.to_host_resource() ) ).unwrap();
 		statement.bind(3, &sqlite::Value::String( ipv4_to_str_address(&node.address() ) ) ).unwrap();
 		statement.bind(4, &sqlite::Value::Integer( node.service() as i64 ) ).unwrap();
 		statement.bind(5, &sqlite::Value::Integer( 1 as i64)).unwrap();

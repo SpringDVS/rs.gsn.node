@@ -43,7 +43,9 @@ pub fn reset_live_test_env(nio: &NetspaceIo, config: &Config) {
 	if config.live_test == false { return }
 	println!("Reset in-memory database");
 	nio.db().execute("DELETE FROM \"geosub_netspace\"").unwrap();
+	nio.db().execute("DELETE FROM \"geotop_netspace\"").unwrap();
 	nio.db().execute("DELETE FROM \"geosub_metaspace\"").unwrap();
+	
 }
 
 pub fn update_address_test_env(nio: &NetspaceIo, nodestring: &str , config: &Config) {
