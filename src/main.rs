@@ -22,7 +22,7 @@ fn main() {
     let mut config = config::Config::new();
     
     config.live_test = true;
-    match service::start_dvsp(&config) {
+    match service::DvspService::start(&config) {
     	Ok(_) => println!("Service OK"),
     	Err(_) => println!("Service finished with error"),
     }
