@@ -26,8 +26,8 @@ use ::unit_test_env::setup_live_test_env;
 use ::protocol::process_packet;
 
 
-pub struct HttpService;
-pub struct DvspService;
+pub struct Http;
+pub struct Dvsp;
 /*
  * ToDo:
  * There is not timeout handling going on
@@ -35,7 +35,7 @@ pub struct DvspService;
  * fossil fuel runs out.
  */
 
-impl DvspService {
+impl Dvsp {
 	pub fn start(config: &Config) -> Result<Success,Failure> {
 		
 		let socket = match UdpSocket::bind("0.0.0.0:55301") {
@@ -61,7 +61,7 @@ impl DvspService {
 		
 		let s = thread::spawn(move|| {
 			
-			DvspService::epoll_wait(epfd, socket, cfg_clone);	    
+			Dvsp::epoll_wait(epfd, socket, cfg_clone);	    
 		});
 	
 		
@@ -126,7 +126,7 @@ impl DvspService {
 }
 
 
-impl HttpService {
+impl Http {
 
 	pub fn start(config: &Config) -> Result<Success,Failure> {
 		
