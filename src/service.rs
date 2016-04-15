@@ -122,59 +122,61 @@ fn epoll_wait(epfd: RawFd, socket: UdpSocket, config: Config) {
 }
 
 
-pub fn start_http(config: &Config) -> Result<Success,Failure> {
-	
-	let mut listener = TcpListener::bind("0.0.0.0:55300").unwrap();
-	
-	let s = thread::spawn(move|| {
-		println!("Http Service: Started");
-		for stream in listener.incoming() {
-			
-			match stream {
-				Ok(mut stream) => {
-					
-					println!("Stream");	
-					let mut buf = [0;4096];
-					
-					let size = match stream.read(&mut buf) {
-						Ok(s) => s,
-						Err(_) => 0
-					};
-					
-					
-					if size > 0 {
-
-						let out = match HttpWrapper::deserialise_request(Vec::from(&buf[0..size])) {
-							Ok(p) => HttpWrapper::serialise_response(&p),
-							Err(e) =>  HttpWrapper::serialise_response(
-														&Packet::from_serialisable(
-															DvspMsgType::GsnResponse, 
-															&FrameResponse::new(DvspRcode::MalformedContent)
-														).unwrap()
-													)
-							
-						};
-
-						stream.write(out.as_slice());
-
-					}
-
-				},
-				Err(_) => { }
-			}
-		}	    
-	});
-	
-	match s.join() {
-		Ok(_) => println!("Joined thread"),
-		_ => println!("Error on join"),
-	}	
-	Ok(Success::Ok)
-	
-}
 
 
 impl HttpService {
+
+	pub fn start(config: &Config) -> Result<Success,Failure> {
+		
+		let mut listener = TcpListener::bind("0.0.0.0:55300").unwrap();
+		
+		let s = thread::spawn(move|| {
+			println!("Http Service: Started");
+			for stream in listener.incoming() {
+				
+				match stream {
+					Ok(mut stream) => {
+						
+						println!("Stream");	
+						let mut buf = [0;4096];
+						
+						let size = match stream.read(&mut buf) {
+							Ok(s) => s,
+							Err(_) => 0
+						};
+						
+						
+						if size > 0 {
+	
+							let out = match HttpWrapper::deserialise_request(Vec::from(&buf[0..size])) {
+								Ok(p) => HttpWrapper::serialise_response(&p),
+								Err(e) =>  HttpWrapper::serialise_response(
+															&Packet::from_serialisable(
+																DvspMsgType::GsnResponse, 
+																&FrameResponse::new(DvspRcode::MalformedContent)
+															).unwrap()
+														)
+								
+							};
+	
+							stream.write(out.as_slice());
+	
+						}
+	
+					},
+					Err(_) => { }
+				}
+			}	    
+		});
+		
+		match s.join() {
+			Ok(_) => println!("Joined thread"),
+			_ => println!("Error on join"),
+		}	
+		Ok(Success::Ok)
+		
+	}
+
 	
 	pub fn make_request(packet: &Packet, address: &Ipv4, host: &str, resource: &str) -> Result<Packet,Failure> {
 		let serial = HttpWrapper::serialise_request(packet, host, resource);

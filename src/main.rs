@@ -27,7 +27,7 @@ fn main() {
     	Err(_) => println!("Service finished with error"),
     }
     
-    match service::start_http(&config) {
+    match service::HttpService::start(&config) {
     	Ok(_) => println!("Service OK"),
     	Err(_) => println!("Service finished with error"),
     }
