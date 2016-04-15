@@ -6,7 +6,10 @@ use std::os::unix::io::{AsRawFd, RawFd};
 use std::net::{UdpSocket,TcpListener,TcpStream};
 use std::thread;
 
-use spring_dvs::protocol::Ipv4;
+use spring_dvs::enums::{DvspMsgType, DvspRcode};
+use spring_dvs::protocol::{Packet, Ipv4, http_from_bin, http_to_bin};
+use spring_dvs::protocol::{FrameResponse, HttpWrapper};
+use spring_dvs::serialise::{NetSerial};
 use spring_dvs::formats::ipv4_to_str_address;
 
 
@@ -139,14 +142,20 @@ pub fn start_http(config: &Config) -> Result<Success,Failure> {
 					
 					
 					if size > 0 {
-						let s = String::from_utf8_lossy(&buf[0..size]);
-						let atoms : Vec<&str> = s.split("\r\n\r\n").collect();
-						
-						if atoms.len() == 2 {
+
+						let out = match HttpWrapper::deserialise_request(Vec::from(&buf[0..size])) {
+							Ok(p) => HttpWrapper::serialise_response(&p),
+							Err(e) =>  HttpWrapper::serialise_response(
+														&Packet::from_serialisable(
+															DvspMsgType::GsnResponse, 
+															&FrameResponse::new(DvspRcode::MalformedContent)
+														).unwrap()
+													)
 							
-						} else {
-							
-						}
+						};
+
+						stream.write(out.as_slice());
+
 					}
 
 				},
@@ -162,6 +171,8 @@ pub fn start_http(config: &Config) -> Result<Success,Failure> {
 	Ok(Success::Ok)
 	
 }
+
+
 
 // ToDo clean this lot up -- better failure states
 pub fn chain_request(bytes: Vec<u8>, target: &Node) -> Result<Vec<u8>, Failure> {
