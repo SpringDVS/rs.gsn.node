@@ -25,6 +25,8 @@ use ::unit_test_env::setup_live_test_env;
 
 use ::protocol::process_packet;
 
+
+pub struct HttpService;
 /*
  * ToDo:
  * There is not timeout handling going on
@@ -132,7 +134,6 @@ pub fn start_http(config: &Config) -> Result<Success,Failure> {
 				Ok(mut stream) => {
 					
 					println!("Stream");	
-					stream.write(&[1]);
 					let mut buf = [0;4096];
 					
 					let size = match stream.read(&mut buf) {
@@ -173,6 +174,32 @@ pub fn start_http(config: &Config) -> Result<Success,Failure> {
 }
 
 
+impl HttpService {
+	
+	pub fn make_request(packet: &Packet, address: &Ipv4, host: &str, resource: &str) -> Result<Packet,Failure> {
+		let serial = HttpWrapper::serialise_request(packet, host, resource);
+		let addr = format!("{}:80", ipv4_to_str_address(address));
+		
+		let mut stream = match TcpStream::connect(addr.as_str()) {
+			Ok(s) => s,
+			Err(_) => return Err(Failure::InvalidArgument)
+		};
+		
+		stream.write(serial.as_slice());
+		let mut buf = [0;4096];
+		let size = match stream.read(&mut buf) {
+					Ok(s) => s,
+					Err(_) => 0
+		};
+		
+		if size == 0 { return Err(Failure::InvalidArgument) }
+		
+		match HttpWrapper::deserialise_response(Vec::from(&buf[0..size])) {
+			Ok(p) => Ok(p),
+			Err(_) => Err(Failure::InvalidConversion)
+		}
+	}  
+}
 
 // ToDo clean this lot up -- better failure states
 pub fn chain_request(bytes: Vec<u8>, target: &Node) -> Result<Vec<u8>, Failure> {
