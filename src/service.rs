@@ -155,9 +155,7 @@ impl Http {
 				
 				match stream {
 					Ok(mut stream) => {
-						
-						
-						println!("Stream");	
+							
 						let mut buf = [0;4096];
 						
 						let address = match stream.peer_addr() {
