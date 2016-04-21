@@ -59,7 +59,7 @@ impl Dvsp {
 		
 		let cfg_clone = config.clone();
 		
-		let s = thread::spawn(move|| {
+		let _ = thread::spawn(move|| {
 			
 			Dvsp::epoll_wait(epfd, socket, cfg_clone);	    
 		});
@@ -128,19 +128,42 @@ impl Dvsp {
 
 impl Http {
 
-	pub fn start(config: &Config) -> Result<Success,Failure> {
+	pub fn start(cfg: &Config) -> Result<Success,Failure> {
 		
 		let mut listener = TcpListener::bind("0.0.0.0:55300").unwrap();
+
+		let config = cfg.clone();
 		
+
 		let s = thread::spawn(move|| {
+				
+			let nio = match config.live_test {
+				false => {
+					NetspaceIo::new("gsn.db") 
+				},
+				true => {
+					println!("Warning: Live testing enabled; using in memory database");
+					let nio = NetspaceIo::new(":memory:");
+					setup_live_test_env(&nio);
+					nio
+				}
+			};			
+
+
 			println!("Http Service: Started");
 			for stream in listener.incoming() {
 				
 				match stream {
 					Ok(mut stream) => {
 						
+						
 						println!("Stream");	
 						let mut buf = [0;4096];
+						
+						let address = match stream.peer_addr() {
+							Ok(a) => a,
+							Err(_) => continue
+						};
 						
 						let size = match stream.read(&mut buf) {
 							Ok(s) => s,
@@ -151,13 +174,16 @@ impl Http {
 						if size > 0 {
 	
 							let out = match HttpWrapper::deserialise_request(Vec::from(&buf[0..size])) {
-								Ok(p) => HttpWrapper::serialise_response(&p),
-								Err(e) =>  HttpWrapper::serialise_response(
-															&Packet::from_serialisable(
-																DvspMsgType::GsnResponse, 
-																&FrameResponse::new(DvspRcode::MalformedContent)
-															).unwrap()
-														)
+								Ok(bytes_in) => {
+
+									let bytes = process_packet(&bytes_in, &address, config, &nio);
+									HttpWrapper::serialise_response_bytes(&bytes)
+								},
+								Err(e) => HttpWrapper::serialise_response(
+														&Packet::from_serialisable(
+															DvspMsgType::GsnResponse, 
+															&FrameResponse::new(DvspRcode::MalformedContent)
+														).unwrap())
 								
 							};
 	
@@ -189,7 +215,7 @@ impl Http {
 			Err(_) => return Err(Failure::InvalidArgument)
 		};
 		
-		stream.write(serial.as_slice());
+		stream.write(serial.as_slice()).unwrap();
 		let mut buf = [0;4096];
 		let size = match stream.read(&mut buf) {
 					Ok(s) => s,
@@ -199,7 +225,7 @@ impl Http {
 		if size == 0 { return Err(Failure::InvalidArgument) }
 		
 		match HttpWrapper::deserialise_response(Vec::from(&buf[0..size])) {
-			Ok(p) => Ok(p),
+			Ok(bytes) => Packet::deserialise(&bytes),
 			Err(_) => Err(Failure::InvalidConversion)
 		}
 	}  
@@ -207,7 +233,7 @@ impl Http {
 
 // ToDo clean this lot up -- better failure states
 pub fn chain_request(bytes: Vec<u8>, target: &Node) -> Result<Vec<u8>, Failure> {
-	println!("Chainging: {:?}", target.service());
+	println!("Chaining: {:?}", target.service());
 	// ToDo: Handle HTTP service layers
 	let address : String = match target.service() {
 		DvspService::Dvsp => format!("{}:55301", ipv4_to_str_address(&target.address())),
