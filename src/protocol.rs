@@ -8,6 +8,7 @@ use spring_dvs::enums::{DvspRcode,DvspMsgType,UnitTestAction};
 
 pub use spring_dvs::serialise::{NetSerial};
 pub use spring_dvs::protocol::{Packet, PacketHeader};
+
 use spring_dvs::protocol::{FrameRegister, FrameStateUpdate, FrameNodeRequest, FrameTypeRequest, FrameResolution, FrameUnitTest, FrameGeosub, FrameRegisterGtn};
 use spring_dvs::protocol::{FrameResponse, FrameNodeInfo, FrameNodeStatus, FrameNetwork};
 use resolution::{resolve_url,ResolutionResult};
@@ -30,7 +31,7 @@ pub fn process_packet(bytes: &[u8], address: &SocketAddr, config: Config, nio: &
 	
 	let mut packet : Packet = match  Packet::deserialise(&bytes) {
 				Ok(p) => { 
-					if config.live_test { println!("{} | {:?}", address, p.header().msg_type) }
+					if config.live_test { /*println!("{} | {:?}", address, p.header().msg_type)*/ }
 					p
 				},
 				Err(_) => { 
@@ -127,7 +128,10 @@ fn process_frame_register(packet: &Packet, address: &SocketAddr, nio: &NetspaceI
 
 fn register_node(node: &Node, nio: &NetspaceIo) -> Vec<u8> {
 	match nio.gsn_node_register(&node) { 
-		Ok(_) => forge_response_packet(DvspRcode::Ok).unwrap().serialise(),
+		Ok(_) => {
+			println!("[Netspace] Registered node: `{}`", node.to_node_string() );
+			forge_response_packet(DvspRcode::Ok).unwrap().serialise()
+		},
 		_ => forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise(),
 	}
 }
@@ -135,7 +139,10 @@ fn register_node(node: &Node, nio: &NetspaceIo) -> Vec<u8> {
 fn unregister_node(node: &Node, nio: &NetspaceIo) -> Vec<u8> {
 	
 	match nio.gsn_node_unregister(&node) { 
-		Ok(_) => forge_response_packet(DvspRcode::Ok).unwrap().serialise(),
+		Ok(_) => {
+			 println!("[Netspace] Unregistered node: `{}`", node.springname() );
+			 forge_response_packet(DvspRcode::Ok).unwrap().serialise()
+		},
 		_ => forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise(),
 	}
 }
@@ -246,7 +253,7 @@ fn process_frame_resolution(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
 		Ok(f) => f,
 		Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
 	};
-	
+
 	match resolve_url(&frame.url, nio) {
 		ResolutionResult::Err(_) => forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise(),
 		ResolutionResult::Node(n) => {
