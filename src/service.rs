@@ -158,7 +158,7 @@ impl Http {
 							
 						let mut buf = [0;4096];
 						
-						let address = match stream.peer_addr() {
+						let mut address = match stream.peer_addr() {
 							Ok(a) => a,
 							Err(_) => continue
 						};
@@ -171,9 +171,8 @@ impl Http {
 						
 						if size > 0 {
 	
-							let out = match HttpWrapper::deserialise_request(Vec::from(&buf[0..size])) {
+							let out = match HttpWrapper::deserialise_request(Vec::from(&buf[0..size]), &mut address) {
 								Ok(bytes_in) => {
-
 									let bytes = process_packet(&bytes_in, &address, config, &nio);
 									HttpWrapper::serialise_response_bytes(&bytes)
 								},
