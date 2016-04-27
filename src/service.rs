@@ -3,7 +3,7 @@ extern crate epoll;
 
 use std::io::prelude::*;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::net::{UdpSocket,TcpListener,TcpStream};
+use std::net::{UdpSocket,TcpListener,TcpStream, SocketAddr};
 use std::thread;
 
 use spring_dvs::enums::{DvspMsgType, DvspRcode};
@@ -26,7 +26,7 @@ use ::unit_test_env::setup_live_test_env;
 use ::protocol::process_packet;
 
 
-pub struct Http;
+pub struct Tcp;
 pub struct Dvsp;
 /*
  * ToDo:
@@ -126,11 +126,11 @@ impl Dvsp {
 }
 
 
-impl Http {
+impl Tcp {
 
 	pub fn start(cfg: &Config) -> Result<Success,Failure> {
 		
-		let mut listener = TcpListener::bind("0.0.0.0:55300").unwrap();
+		let listener = TcpListener::bind("0.0.0.0:55300").unwrap();
 
 		let config = cfg.clone();
 		
@@ -150,7 +150,7 @@ impl Http {
 			};			
 
 
-			println!("Http Service: Started");
+			println!("TCP Service: Started");
 			for stream in listener.incoming() {
 				
 				match stream {
@@ -169,22 +169,12 @@ impl Http {
 						};
 						
 						
-						if size > 0 {
+						if size > 4 {
+							
+							
+							let out : Vec<u8> = Tcp::handle_request(&buf[0..size], &mut address, &config, &nio);
 	
-							let out = match HttpWrapper::deserialise_request(Vec::from(&buf[0..size]), &mut address) {
-								Ok(bytes_in) => {
-									let bytes = process_packet(&bytes_in, &address, config, &nio);
-									HttpWrapper::serialise_response_bytes(&bytes)
-								},
-								Err(e) => HttpWrapper::serialise_response(
-														&Packet::from_serialisable(
-															DvspMsgType::GsnResponse, 
-															&FrameResponse::new(DvspRcode::MalformedContent)
-														).unwrap())
-								
-							};
-	
-							stream.write(out.as_slice());
+							stream.write(out.as_slice()).unwrap();
 	
 						}
 	
@@ -199,6 +189,30 @@ impl Http {
 			_ => println!("Error on join"),
 		}	
 		Ok(Success::Ok)
+		
+	}
+	
+	pub fn handle_request(bytes: &[u8], address: &mut SocketAddr, config: &Config, nio: &NetspaceIo) -> Vec<u8> {
+		let check = &bytes[0..4];
+		
+		if &check == &"POST".as_bytes() {
+			// Here sort it as an HTTP service layer
+			match HttpWrapper::deserialise_request(Vec::from(bytes), address) {
+				Ok(bytes_in) => {
+					let bytes = process_packet(&bytes_in, &address, config.clone(), &nio);
+					return HttpWrapper::serialise_response_bytes(&bytes)
+				},
+				Err(_) => return HttpWrapper::serialise_response(
+										&Packet::from_serialisable(
+											DvspMsgType::GsnResponse, 
+											&FrameResponse::new(DvspRcode::MalformedContent)
+										).unwrap())
+			};
+		}
+		
+		// Here we handle a straight DVSP TCP stream
+		process_packet(&bytes, &address, config.clone(), &nio)
+		
 		
 	}
 
