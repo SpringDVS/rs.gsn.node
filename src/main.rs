@@ -15,6 +15,7 @@ mod protocol;
 mod config;
 mod resolution;
 mod node_config;
+mod requests;
 mod unit_test_env;
 
 fn main() {
