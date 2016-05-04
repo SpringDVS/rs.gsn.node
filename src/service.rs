@@ -217,10 +217,19 @@ impl Tcp {
 	}
 
 	
-	pub fn make_request(packet: &Packet, address: &Ipv4, host: &str, resource: &str) -> Result<Packet,Failure> {
-		let serial = HttpWrapper::serialise_request(packet, host, resource);
-		let addr = format!("{}:80", ipv4_to_str_address(address));
+	pub fn make_request(packet: &Packet, address: &Ipv4, host: &str, resource: &str, service: DvspService) -> Result<Packet,Failure> {
 		
+		let (addr, serial) = match service {
+			DvspService::Http => (
+				 	format!("{}:80", ipv4_to_str_address(address)),
+				 	HttpWrapper::serialise_request(packet, host, resource)
+			),
+			_ => (
+				format!("{}:55300", ipv4_to_str_address(address)),
+				packet.serialise()
+			)
+		};
+
 		let mut stream = match TcpStream::connect(addr.as_str()) {
 			Ok(s) => s,
 			Err(_) => return Err(Failure::InvalidArgument)
@@ -228,6 +237,7 @@ impl Tcp {
 		
 		stream.write(serial.as_slice()).unwrap();
 		let mut buf = [0;4096];
+
 		let size = match stream.read(&mut buf) {
 					Ok(s) => s,
 					Err(_) => 0
