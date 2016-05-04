@@ -25,6 +25,7 @@ pub enum ResolutionResult {
 }
 
 pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
+	
 	let mut url : Url = match Url::new(url) {
 		Err(e) => return ResolutionResult::Err(e),
 		Ok(u) => u
@@ -58,6 +59,7 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 		let node_str = url.route().last().unwrap();
 		// This might be a node, this might be a GSN --
 		// We need to handle for both
+
 		match nio.gsn_node_by_springname(&node_str) {
 			Ok(n) => ResolutionResult::Node(n),
 			Err(_) => ResolutionResult::Err(Failure::InvalidArgument)

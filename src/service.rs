@@ -155,7 +155,7 @@ impl Tcp {
 				
 				match stream {
 					Ok(mut stream) => {
-							
+	
 						let mut buf = [0;4096];
 						
 						let mut address = match stream.peer_addr() {
@@ -229,7 +229,7 @@ impl Tcp {
 				packet.serialise()
 			)
 		};
-
+		
 		let mut stream = match TcpStream::connect(addr.as_str()) {
 			Ok(s) => s,
 			Err(_) => return Err(Failure::InvalidArgument)
@@ -245,9 +245,14 @@ impl Tcp {
 		
 		if size == 0 { return Err(Failure::InvalidArgument) }
 		
-		match HttpWrapper::deserialise_response(Vec::from(&buf[0..size])) {
-			Ok(bytes) => Packet::deserialise(&bytes),
-			Err(_) => Err(Failure::InvalidConversion)
+		if service == DvspService::Http {
+			
+			match HttpWrapper::deserialise_response(Vec::from(&buf[0..size])) {
+				Ok(bytes) => Packet::deserialise(&bytes),
+				Err(_) => Err(Failure::InvalidConversion)
+			}
+		} else {
+			Packet::deserialise(&buf[0..size])
 		}
 	}  
 }

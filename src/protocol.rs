@@ -344,20 +344,22 @@ fn process_frame_request(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
 	
 	let frame : FrameResolution = packet.content_as::<FrameResolution>().unwrap();
 	let url = Url::new(&frame.url).unwrap();
-
-
+	
 	let check = match url.route().first() {
 		Some(u) => u,
 		None => return forge_response_packet(DvspRcode::NetworkError).unwrap().serialise() 
 	};
-	
+
 	if check == node_geosub().as_str() {
-		multicast_request(packet, &nio.gsn_nodes()).serialise()
+		multicast_request(packet, &nio.gsn_nodes(), &mut url.clone() ).serialise()
 	} else if check == node_springname().as_str() {
+		// Root node doesn't do single requests yet
 		forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise()
 	} else {
 		forge_response_packet(DvspRcode::NetworkError).unwrap().serialise()
 	}
+	
+	
 }
 
 // --------------------- UNIT TESTING MANAGEMENT -------------------
