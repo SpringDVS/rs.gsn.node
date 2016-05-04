@@ -5,6 +5,7 @@ use unit_test_env::{reset_live_test_env,update_address_test_env,add_geosub_root_
 
 use spring_dvs::formats::*;
 use spring_dvs::enums::{DvspRcode,DvspMsgType,UnitTestAction};
+use spring_dvs::model::Url;
 
 pub use spring_dvs::serialise::{NetSerial};
 pub use spring_dvs::protocol::{Packet, PacketHeader};
@@ -12,6 +13,9 @@ pub use spring_dvs::protocol::{Packet, PacketHeader};
 use spring_dvs::protocol::{FrameRegister, FrameStateUpdate, FrameNodeRequest, FrameTypeRequest, FrameResolution, FrameUnitTest, FrameGeosub, FrameRegisterGtn};
 use spring_dvs::protocol::{FrameResponse, FrameNodeInfo, FrameNodeStatus, FrameNetwork};
 use resolution::{resolve_url,ResolutionResult};
+
+use requests::multicast_request;
+use node_config::{node_geosub,node_springname};
 
 
 
@@ -21,7 +25,7 @@ fn forge_packet<T: NetSerial>(msg_type: DvspMsgType, frame: &T) -> Result<Packet
 	Ok(p)
 }
 
-fn forge_response_packet(rcode: DvspRcode) -> Result<Packet, Failure> {
+pub fn forge_response_packet(rcode: DvspRcode) -> Result<Packet, Failure> {
 	forge_packet(DvspMsgType::GsnResponse, &FrameResponse::new(rcode))
 }
 
@@ -58,6 +62,8 @@ pub fn process_packet(bytes: &[u8], address: &SocketAddr, config: Config, nio: &
 		DvspMsgType::GsnNodeStatus => process_frame_node_status(&packet,&nio),
 		DvspMsgType::GsnArea => process_frame_area(&nio),
 		DvspMsgType::GsnTypeRequest => process_frame_type_request(&packet,&nio),
+		
+		DvspMsgType::GsnRequest => process_frame_request(&packet,&nio),
 		
 		
 		DvspMsgType::GtnRegistration => process_frame_register_gtn(&packet,&address,&nio),
@@ -332,6 +338,26 @@ fn process_frame_geosub(packet: &Packet, address: &SocketAddr, nio: &NetspaceIo)
 	let frame =	FrameNetwork::new(&nodes_to_node_list(&nodes));
 			
 	forge_packet(DvspMsgType::GsnResponseNetwork, &frame).unwrap().serialise()
+}
+
+fn process_frame_request(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
+	
+	let frame : FrameResolution = packet.content_as::<FrameResolution>().unwrap();
+	let url = Url::new(&frame.url).unwrap();
+
+
+	let check = match url.route().first() {
+		Some(u) => u,
+		None => return forge_response_packet(DvspRcode::NetworkError).unwrap().serialise() 
+	};
+	
+	if check == node_geosub().as_str() {
+		multicast_request(packet, &nio.gsn_nodes()).serialise()
+	} else if check == node_springname().as_str() {
+		forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise()
+	} else {
+		forge_response_packet(DvspRcode::NetworkError).unwrap().serialise()
+	}
 }
 
 // --------------------- UNIT TESTING MANAGEMENT -------------------
