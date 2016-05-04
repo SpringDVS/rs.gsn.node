@@ -19,8 +19,9 @@ mod requests;
 mod unit_test_env;
 
 fn main() {
-    println!("Spring GSN Root Node");
+    println!("Spring GSN Root Node\n{}.{}.uk", node_config::node_springname(), node_config::node_geosub());
     let mut config = config::Config::new();
+    
     
     config.live_test = true;
     match service::Dvsp::start(&config) {
