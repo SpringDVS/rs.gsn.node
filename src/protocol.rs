@@ -86,17 +86,29 @@ fn process_frame_register(packet: &Packet, address: &SocketAddr, nio: &NetspaceI
 
 	// Cracking out -- Check format!!!!!!!!
 	// if format is wrong, server panics
-	let mut node = Node::from_node_string( 
+	let mut node = match Node::from_node_string( 
 		&nodestring_from_node_register( &frame.nodereg, &packet.header().addr_orig )
-	).unwrap();
+		) {
+			Ok(n) => n,
+			Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()
+		};
 
 	let registered = netspace_routine_is_registered(&node, &nio);
 	
 	if frame.register ==  true {
-
+		let v : Vec<u8> = Vec::from(&frame.token[0..]);
+		let token = match String::from_utf8( v ) {
+			Ok(t) => t,
+			Err(_) => return forge_response_packet(DvspRcode::MalformedContent).unwrap().serialise()					
+		};
+		if netspace_routine_check_token(&nio, token) == false {
+			return forge_response_packet(DvspRcode::NetspaceError).unwrap().serialise()
+		}
 		node.update_service(frame.service);
 		node.update_types(frame.ntype);
 		node.update_state(DvspNodeState::Disabled);
+		
+		
 
 		match registered {
 			true => forge_response_packet(DvspRcode::NetspaceDuplication).unwrap().serialise(),
