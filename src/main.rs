@@ -19,18 +19,19 @@ mod requests;
 mod unit_test_env;
 
 fn main() {
-    println!("Spring GSN Root Node\n{}.{}.uk", node_config::node_springname(), node_config::node_geosub());
+    println!("Spring GSN Root Node\n[Node] {}.{}.uk", node_config::node_springname(), node_config::node_geosub());
+    println!("[Node] {}/{}", node_config::node_hostname(), node_config::node_resource());
     let mut config = config::Config::new();
     
     
     config.live_test = true;
     match service::Dvsp::start(&config) {
-    	Ok(_) => println!("Service OK"),
-    	Err(_) => println!("Service finished with error"),
+    	Ok(_) =>{  },
+    	Err(_) => println!("[Error]"),
     }
     
     match service::Tcp::start(&config) {
-    	Ok(_) => println!("Service OK"),
-    	Err(_) => println!("Service finished with error"),
+    	Ok(_) => {},
+    	Err(_) => {println!("[Error]")},
     }
 }

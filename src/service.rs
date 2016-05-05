@@ -54,7 +54,7 @@ impl Dvsp {
 		
 		match epoll::ctl(epfd, ctl_op::ADD, sfd, &mut event) {
 			Ok(()) => { },
-			Err(e) => println!("CtlError on add: {}", e)
+			Err(e) => println!("[Error] CtlError on add: {}", e)
 		};
 		
 		let cfg_clone = config.clone();
@@ -82,18 +82,20 @@ impl Dvsp {
 	    
 	    let nio = match config.live_test {
 			false => {
-				println!("Live System");
+				println!("[Alert] Live System");
 				NetspaceIo::new("gsn.db") 
 			},
 			true => {
-				println!("Warning: Live testing enabled; using in memory database");
-				let nio = NetspaceIo::new(":memory:");
-				setup_live_test_env(&nio);
+				println!("[Alert] Warning: Live testing enabled; using testing database");
+				let nio = NetspaceIo::new("live-testing.db");
+				
+				setup_live_test_env(&nio, &config);
 				nio
+			
 			}
 		};
 		
-	    println!("Started");
+	    println!("[Service] UDP Service Online");
 	    loop {
 		    match epoll::wait(epfd, &mut events[..], -1) {
 		
@@ -118,7 +120,7 @@ impl Dvsp {
 		            }
 		        }
 		
-		        Err(e) => println!("Error on epoll::wait(): {}", e)
+		        Err(e) => println!("[Error] Error on epoll::wait(): {}", e)
 			}
 	    }
 	}
@@ -142,15 +144,14 @@ impl Tcp {
 					NetspaceIo::new("gsn.db") 
 				},
 				true => {
-					println!("Warning: Live testing enabled; using in memory database");
-					let nio = NetspaceIo::new(":memory:");
-					setup_live_test_env(&nio);
+					
+					let nio = NetspaceIo::new("live-testing.db");
 					nio
 				}
 			};			
 
 
-			println!("TCP Service: Started");
+			println!("[Service] TCP Service Online");
 			for stream in listener.incoming() {
 				
 				match stream {
@@ -185,8 +186,8 @@ impl Tcp {
 		});
 		
 		match s.join() {
-			Ok(_) => println!("Joined thread"),
-			_ => println!("Error on join"),
+			Ok(_) => { },
+			_ => println!("[Error] Error on TCP thread join"),
 		}	
 		Ok(Success::Ok)
 		
@@ -259,29 +260,29 @@ impl Tcp {
 
 // ToDo clean this lot up -- better failure states
 pub fn chain_request(bytes: Vec<u8>, target: &Node) -> Result<Vec<u8>, Failure> {
-	println!("Chaining: {:?}", target.service());
+	
 	// ToDo: Handle HTTP service layers
 	let address : String = match target.service() {
 		DvspService::Dvsp => format!("{}:55301", ipv4_to_str_address(&target.address())),
 		_ => return Err(Failure::InvalidArgument)
 	};
-	println!("Bound");
+	
 	let socket = match UdpSocket::bind("0.0.0.0:0") {
 			Ok(s) => s,
 			Err(_) => return Err(Failure::InvalidArgument)
 	};
-	println!("Sending");
+	
 	match socket.send_to(bytes.as_ref(), address.as_str()) {
 		Ok(_) =>{ },
 		_ => return Err(Failure::InvalidArgument),
 	}
-	println!("Chain Sent");
+	
 	let mut buf = [0;768];
 	let (sz, _) = match socket.recv_from(&mut buf) {
 		Ok(t) => t,
 		_ => { return Err(Failure::InvalidArgument) }
 	};
-	println!("Chain Recv");
+	
 	Ok(Vec::from(&buf[0..sz]))
 	
 }
