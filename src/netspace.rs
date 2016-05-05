@@ -376,6 +376,19 @@ pub fn netspace_routine_is_registered(node: &Node, nio: &NetspaceIo) -> bool {
 
 }
 
+pub fn netspace_routine_check_token(nio: &NetspaceIo, token: String) -> bool {
+	let mut statement = nio.db().prepare("
+    	SELECT * FROM geosub_token WHERE token = ?
+		").unwrap();
+
+	statement.bind(1, &sqlite::Value::String( token ) ).unwrap();
+		
+	match statement.next() {
+		Ok(state) => true,
+		_ => false
+	}	
+}
+
 // Fix:
 // Checking by address is unsafe -- this is where we need to 
 // implement certificates after the prototype
@@ -420,11 +433,16 @@ mod tests {
 			`priority`	INTEGER,
 			`geosub`	TEXT
 		);
+		CREATE TABLE `geosub_token` (
+			`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
+			`token`	TEXT
+		);
 
 		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types) VALUES (1,'esusx','greenman.zu','192.168.1.1',1,1,1);
 		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types) VALUES (2,'cci','dvsnode.greenman.zu','192.168.1.2',2,1,2);
 		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub) VALUES (1,'springA', 'greenman', '192.168.1.2', 1, 2, 'esusx');
 		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub) VALUES (2,'springB', 'blueman', '192.168.1.3', 2, 1, 'esusx');
+		INSERT INTO `geosub_token` (token) VALUES ('3858f62230ac3c915f300c664312c63f');
 		").unwrap();
 	}
 
@@ -777,6 +795,20 @@ mod tests {
 				
 	}
 	
+	#[test]
+	fn ts_netspace_routine_check_token_p() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		assert!(netspace_routine_check_token(&nsio, "3858f62230ac3c915f300c664312c63f".to_string()));		
+	}
+
+	#[test]
+	fn ts_netspace_routine_check_token_f() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		assert!(netspace_routine_check_token(&nsio, "3858f62230ac3c915f300c66432c63f1".to_string()));		
+	}
+
 	#[test]
 	fn ts_netspace_routine_is_address_gsn_root_p() {
 		let nsio = NetspaceIo::new(":memory:");
