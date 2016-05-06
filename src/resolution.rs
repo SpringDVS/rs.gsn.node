@@ -1,11 +1,11 @@
 use spring_dvs::model::{Url,Node,Netspace};
-use spring_dvs::enums::{Failure,DvspMsgType};
+use spring_dvs::enums::{Failure,DvspMsgType,DvspService,DvspNodeType};
 use spring_dvs::protocol::{Packet, FrameResolution};
 use spring_dvs::serialise::{NetSerial};
 
 use service::chain_request;
 use netspace::NetspaceIo;
-use node_config::{node_springname,node_geosub};
+use node_config::*;
 
 /*
  * ToDo:
@@ -61,10 +61,26 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 		// We need to handle for both
 
 		match nio.gsn_node_by_springname(&node_str) {
-			Ok(n) => ResolutionResult::Node(n),
-			Err(_) => ResolutionResult::Err(Failure::InvalidArgument)
+			Ok(n) => return ResolutionResult::Node(n),
+			Err(_) => {}
 		}
-
+		
+		if(node_str == node_geosub().as_str()) {
+		// ToDo: Handle for resolving roots nodes of GSN root
+		// for now we'll just resolve as this node
+			let res = format!("{},{}/{},{}", 
+				node_springname(),
+				node_hostname(),
+				node_resource(),
+				node_address()
+			);
+			let mut n = Node::from_node_string(res.as_str()).unwrap();
+			n.update_service(DvspService::Dvsp);
+			n.update_types(DvspNodeType::Root as u8);
+			ResolutionResult::Node(n)
+		} else {
+			ResolutionResult::Err(Failure::InvalidArgument)
+		}
 	} else if url.route().len() > 1 {
 
 		println!("Pass through");
