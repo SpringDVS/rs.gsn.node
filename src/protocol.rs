@@ -361,7 +361,7 @@ fn process_frame_request(packet: &Packet, nio: &NetspaceIo) -> Vec<u8> {
 		Some(u) => u,
 		None => return forge_response_packet(DvspRcode::NetworkError).unwrap().serialise() 
 	};
-
+	
 	if check == node_geosub().as_str() {
 		multicast_request(packet, &nio.gsn_nodes(), &mut url.clone() ).serialise()
 	} else if check == node_springname().as_str() {

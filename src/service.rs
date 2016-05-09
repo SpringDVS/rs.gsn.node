@@ -83,7 +83,7 @@ impl Dvsp {
 	    let nio = match config.live_test {
 			false => {
 				println!("[Alert] Live System");
-				NetspaceIo::new("gsn.db") 
+				NetspaceIo::new("/var/lib/springdvs/gsn.db") 
 			},
 			true => {
 				println!("[Alert] Warning: Live testing enabled; using testing database");
@@ -141,7 +141,7 @@ impl Tcp {
 				
 			let nio = match config.live_test {
 				false => {
-					NetspaceIo::new("gsn.db") 
+					NetspaceIo::new("/var/lib/springdvs/gsn.db") 
 				},
 				true => {
 					

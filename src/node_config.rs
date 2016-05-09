@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::prelude::*;
 #[allow(dead_code)]
 pub fn node_springname() -> String {
-	let mut f : File = match File::open("node.conf") {
+	let mut f : File = match File::open("/etc/springdvs/node.conf") {
 		Ok(f) => f,
 		_ => return "".to_string()
 	};
@@ -27,7 +27,7 @@ pub fn node_springname() -> String {
 }
 
 pub fn node_geosub() -> String {
-	let mut f : File = match File::open("node.conf") {
+	let mut f : File = match File::open("/etc/springdvs/node.conf") {
 		Ok(f) => f,
 		_ => return "".to_string()
 	};
@@ -52,7 +52,7 @@ pub fn node_geosub() -> String {
 }
 
 pub fn node_hostname() -> String {
-	let mut f : File = match File::open("node.conf") {
+	let mut f : File = match File::open("/etc/springdvs/node.conf") {
 		Ok(f) => f,
 		_ => return "".to_string()
 	};
@@ -77,7 +77,7 @@ pub fn node_hostname() -> String {
 }
 
 pub fn node_resource() -> String {
-	let mut f : File = match File::open("node.conf") {
+	let mut f : File = match File::open("/etc/springdvs/node.conf") {
 		Ok(f) => f,
 		_ => return "".to_string()
 	};
@@ -102,7 +102,7 @@ pub fn node_resource() -> String {
 }
 
 pub fn node_address() -> String {
-	let mut f : File = match File::open("node.conf") {
+	let mut f : File = match File::open("/etc/springdvs/node.conf") {
 		Ok(f) => f,
 		_ => return "".to_string()
 	};
