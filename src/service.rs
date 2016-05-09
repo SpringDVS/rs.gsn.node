@@ -250,7 +250,7 @@ impl Tcp {
 			
 			match HttpWrapper::deserialise_response(Vec::from(&buf[0..size])) {
 				Ok(bytes) => Packet::deserialise(&bytes),
-				Err(_) => Err(Failure::InvalidConversion)
+				Err(e) => { Err(Failure::InvalidConversion)  }
 			}
 		} else {
 			Packet::deserialise(&buf[0..size])
