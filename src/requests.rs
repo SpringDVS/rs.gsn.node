@@ -14,7 +14,8 @@ use service::Tcp;
 pub fn multicast_request(packet: &Packet, nodes: &Vec<Node>, url: &mut Url) -> Packet {
 
 	let mut v : Vec<Packet> = Vec::new();
-	
+	let dbg_url = url.to_string();
+	println!("[Service] Processing {}", dbg_url);
 	let (tx,rx) = channel();
 	
 	for i in 0..nodes.len() {
