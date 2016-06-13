@@ -2,11 +2,10 @@
 extern crate sqlite;
 
 
-pub use spring_dvs::enums::{DvspNodeType,DvspNodeState,DvspService,Failure,Success};
-use spring_dvs::protocol::{Ipv4,NodeTypeField, u8_service_type, u8_status_type};
-use spring_dvs::formats::{ipv4_to_str_address,str_address_to_ipv4};
+pub use spring_dvs::enums::{Failure,Success};
+pub use spring_dvs::node::{Node,NodeRole,NodeService,NodeState,ParseFailure};
+pub use spring_dvs::spaces::{Netspace};
 
-pub use spring_dvs::model::{Netspace,Node};
 
 use self::sqlite::{State,Statement};
 
@@ -39,21 +38,12 @@ impl NetspaceIo {
 	fn fill_node(&self, statement: &sqlite::Statement) -> Result<Node,Failure> {
 		let spring = statement.read::<String>(1).unwrap();
 		let host = statement.read::<String>(2).unwrap();
-		let addr = try!(str_address_to_ipv4(&statement.read::<String>(3).unwrap()));
-		let service = match u8_service_type(statement.read::<i64>(4).unwrap() as u8) {
-				Some(op) => op,
-				None => return Err(Failure::InvalidBytes)
-			};
-
+		let addr = statement.read::<String>(3).unwrap();
+		let service = NodeService::from_i64(statement.read::<i64>(4).unwrap());
+		let state = NodeState::from_i64(statement.read::<i64>(4).unwrap());
+		let role =  NodeRole::from_i64(statement.read::<i64>(6).unwrap());
 		
-		let status =  match u8_status_type(statement.read::<i64>(5).unwrap() as u8) {
-				Some(op) => op,
-				None => return Err(Failure::InvalidBytes)
-			};
-		
-		let types =  statement.read::<i64>(6).unwrap() as u8;
-		
-		Ok(Node::new(spring, host, addr, service, status, types))
+		Ok(Node::new(&spring, &host, &addr, service, state, role))
 	}
 	
 	fn vector_from_statement(&self, statement: &mut Statement) -> Vec<Node> {
@@ -118,20 +108,20 @@ impl Netspace for NetspaceIo {
 			self.vector_from_statement(&mut statement)
 	}
 	
-	fn gsn_nodes_by_address(&self, address: Ipv4) -> Vec<Node> {
+	fn gsn_nodes_by_address(&self, address: &str) -> Vec<Node> {
 		
 		let mut statement = self.db.prepare("
     	SELECT * FROM geosub_netspace WHERE address = ?
 		").unwrap();
 
-		statement.bind(1, &sqlite::Value::String( ipv4_to_str_address(&address) ) ).unwrap();
+		statement.bind(1, &sqlite::Value::String( String::from(address) ) ).unwrap();
 		
 		self.vector_from_statement(&mut statement)
 		
 	}
 
 	
-	fn gsn_nodes_by_type(&self, types: NodeTypeField) -> Vec<Node> {
+	fn gsn_nodes_by_type(&self, types: NodeRole) -> Vec<Node> {
 		
 		let mut statement = self.db.prepare("
     	SELECT * FROM geosub_netspace WHERE types & ?
@@ -142,7 +132,7 @@ impl Netspace for NetspaceIo {
 		self.vector_from_statement(&mut statement)
 	}
 
-	fn gsn_nodes_by_state(&self, state: DvspNodeState) -> Vec<Node> {
+	fn gsn_nodes_by_state(&self, state: NodeState) -> Vec<Node> {
 		
 		let mut statement = self.db.prepare("
     	SELECT * FROM geosub_netspace WHERE status = ?
@@ -199,11 +189,11 @@ impl Netspace for NetspaceIo {
 						(springname,hostname,address,service,status,types) 
 						VALUES (?,?,?,?,?,?)").unwrap();
 		statement.bind(1, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
-		statement.bind(2, &sqlite::Value::String( node.to_host_resource() ) ).unwrap();
-		statement.bind(3, &sqlite::Value::String( ipv4_to_str_address(&node.address() ) ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( String::from(node.hostname()) ) ).unwrap();
+		statement.bind(3, &sqlite::Value::String( String::from(node.address()) )).unwrap();
 		statement.bind(4, &sqlite::Value::Integer( node.service() as i64 ) ).unwrap();
 		statement.bind(5, &sqlite::Value::Integer( node.state() as i64 ) ).unwrap();
-		statement.bind(6, &sqlite::Value::Integer( node.types() as i64 ) ).unwrap();
+		statement.bind(6, &sqlite::Value::Integer( node.role() as i64 ) ).unwrap();
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
 			Err(_) => Err(Failure::InvalidArgument)   
@@ -249,7 +239,7 @@ impl Netspace for NetspaceIo {
 		}
 	}
 	
-	fn gsn_node_update_types(&self, node: &Node) -> Result<Success,Failure> {
+	fn gsn_node_update_role(&self, node: &Node) -> Result<Success,Failure> {
 	
 		if self.gsn_node_by_springname(node.springname()).is_err() {
 			return Err(Failure::InvalidArgument)
@@ -261,7 +251,7 @@ impl Netspace for NetspaceIo {
 						SET types = ?
 						WHERE springname = ?").unwrap();
 		
-		statement.bind(1, &sqlite::Value::Integer( node.types() as i64 ) ).unwrap();
+		statement.bind(1, &sqlite::Value::Integer( node.role() as i64 ) ).unwrap();
 		statement.bind(2, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
 		
 		match statement.next() {
@@ -312,13 +302,14 @@ impl Netspace for NetspaceIo {
 		").unwrap();
 
 		statement.bind(1, &sqlite::Value::String( String::from(name) ) ).unwrap();
-		statement.bind(2, &sqlite::Value::String( String::from(gsn) ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( String::from(gsn)  ) ).unwrap();
 		
 		self.node_from_statement(&mut statement)
 	}
 
 	fn gtn_geosub_register_node(&self, node: &Node, gsn: &str) -> Result<Success,Failure> {
-		if self.gtn_geosub_node_by_springname(&node.springname(), &gsn).is_ok() {
+		
+		if self.gtn_geosub_node_by_springname(node.springname(), &gsn).is_ok() {
 			return Err(Failure::Duplicate)
 		}
 		
@@ -328,8 +319,8 @@ impl Netspace for NetspaceIo {
 						(springname,hostname,address,service,priority, geosub) 
 						VALUES (?,?,?,?,?,?)").unwrap();
 		statement.bind(1, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
-		statement.bind(2, &sqlite::Value::String( node.to_host_resource() ) ).unwrap();
-		statement.bind(3, &sqlite::Value::String( ipv4_to_str_address(&node.address() ) ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( String::from(node.hostname()) ) ).unwrap();
+		statement.bind(3, &sqlite::Value::String( String::from(node.address()) ) ).unwrap();
 		statement.bind(4, &sqlite::Value::Integer( node.service() as i64 ) ).unwrap();
 		statement.bind(5, &sqlite::Value::Integer( 1 as i64)).unwrap();
 		statement.bind(6, &sqlite::Value::String( String::from(gsn) )).unwrap();
@@ -342,7 +333,7 @@ impl Netspace for NetspaceIo {
 
 	fn gtn_geosub_unregister_node(&self, node: &Node, gsn: &str) -> Result<Success,Failure> {
 
-		if self.gtn_geosub_node_by_springname(&node.springname(), &gsn).is_err() {
+		if self.gtn_geosub_node_by_springname(node.springname(), &gsn).is_err() {
 			return Err(Failure::InvalidArgument)
 		}
 
@@ -392,11 +383,11 @@ pub fn netspace_routine_check_token(nio: &NetspaceIo, token: String) -> bool {
 // Fix:
 // Checking by address is unsafe -- this is where we need to 
 // implement certificates after the prototype
-pub fn netspace_routine_is_address_gsn_root(address: &Ipv4, gsn: &str, nio: &NetspaceIo) -> bool {
+pub fn netspace_routine_is_address_gsn_root(address: &str, gsn: &str, nio: &NetspaceIo) -> bool {
 	let nodes = nio.gtn_geosub_root_nodes(gsn);
 	
 	for node in nodes {
-		if &node.address() == address { return true }
+		if node.address() == address { return true }
 	}
 	
 	false
@@ -440,8 +431,8 @@ mod tests {
 
 		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types) VALUES (1,'esusx','greenman.zu','192.168.1.1',1,1,1);
 		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types) VALUES (2,'cci','dvsnode.greenman.zu','192.168.1.2',2,1,2);
-		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub) VALUES (1,'springA', 'greenman', '192.168.1.2', 1, 2, 'esusx');
-		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub) VALUES (2,'springB', 'blueman', '192.168.1.3', 2, 1, 'esusx');
+		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub) VALUES (1,'springa', 'greenman', '192.168.1.2', 1, 2, 'esusx');
+		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub) VALUES (2,'springb', 'blueman', '192.168.1.3', 2, 1, 'esusx');
 		INSERT INTO `geosub_tokens` (token) VALUES ('3858f62230ac3c915f300c664312c63f');
 		").unwrap();
 	}
@@ -460,9 +451,9 @@ mod tests {
 
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let v = nsio.gsn_nodes_by_address([192,168,1,1]);
+		let v = nsio.gsn_nodes_by_address("192.168.1.1");
 		assert_eq!(1, v.len());
-		assert_eq!([192,168,1,1], v[0].address());
+		assert_eq!("192.168.1.1", v[0].address());
 	}
 
 	#[test]
@@ -470,7 +461,7 @@ mod tests {
 
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let v = nsio.gsn_nodes_by_address([192,168,1,3]);
+		let v = nsio.gsn_nodes_by_address("192.168.1.3");
 		assert_eq!(0, v.len());
 	}
 	
@@ -479,9 +470,9 @@ mod tests {
 
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let v = nsio.gsn_nodes_by_type(DvspNodeType::Root as u8);
+		let v = nsio.gsn_nodes_by_type(NodeRole::Hub);
 		assert_eq!(1, v.len());
-		assert_eq!(DvspNodeType::Root as u8, v[0].types());
+		assert_eq!(NodeRole::Hub, v[0].role());
 	}
 
 	#[test]
@@ -489,7 +480,7 @@ mod tests {
 
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let v = nsio.gsn_nodes_by_type(DvspNodeType::Undefined as u8);
+		let v = nsio.gsn_nodes_by_type(NodeRole::Undefined);
 		assert_eq!(0, v.len());
 	}
 	
@@ -498,9 +489,9 @@ mod tests {
 
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let v = nsio.gsn_nodes_by_state(DvspNodeState::Enabled);
+		let v = nsio.gsn_nodes_by_state(NodeState::Enabled);
 		assert_eq!(2, v.len());
-		assert_eq!(DvspNodeState::Enabled, v[0].state());
+		assert_eq!(NodeState::Enabled, v[0].state());
 	}
 
 	#[test]
@@ -508,7 +499,7 @@ mod tests {
 
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let v = nsio.gsn_nodes_by_state(DvspNodeState::Unresponsive);
+		let v = nsio.gsn_nodes_by_state(NodeState::Unresponsive);
 		assert_eq!(0, v.len());
 	}
 
@@ -554,7 +545,7 @@ mod tests {
 	fn ts_netspaceio_gsn_node_by_register_p() {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let r = nsio.gsn_node_register((& Node::from_node_string("spring,host,192.172.1.1").unwrap()));
+		let r = nsio.gsn_node_register((& Node::from_str("spring,host,192.172.1.1").unwrap()));
 		assert!(r.is_ok());
 		
 		let r2 = nsio.gsn_node_by_springname("spring");
@@ -568,7 +559,7 @@ mod tests {
 	fn ts_netspaceio_gsn_node_by_register_f() {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let r = nsio.gsn_node_register((& Node::from_node_string("esusx,host,192.172.1.1").unwrap()));
+		let r = nsio.gsn_node_register((& Node::from_str("esusx,host,192.172.1.1").unwrap()));
 		assert!(r.is_err());
 		
 		let e = r.unwrap_err();
@@ -580,7 +571,7 @@ mod tests {
 	fn ts_netspaceio_gsn_node_by_unregister_p() {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let r = nsio.gsn_node_unregister((& Node::from_node_string("cci,host,192.172.1.1").unwrap()));
+		let r = nsio.gsn_node_unregister((& Node::from_str("cci,host,192.172.1.1").unwrap()));
 		assert!(r.is_ok());
 		
 		let r2 = nsio.gsn_node_by_springname("cci");
@@ -591,7 +582,7 @@ mod tests {
 	fn ts_netspaceio_gsn_node_by_unregister_f() {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let r = nsio.gsn_node_unregister((& Node::from_node_string("nonname,host,192.172.1.1").unwrap()));
+		let r = nsio.gsn_node_unregister((& Node::from_str("nonname,host,192.172.1.1").unwrap()));
 		assert!(r.is_err());
 		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
 	}
@@ -601,13 +592,13 @@ mod tests {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
 		
-		let mut n = Node::from_springname("cci").unwrap();
-		n.update_state(DvspNodeState::Unresponsive);
+		let mut n = Node::from_str("cci").unwrap();
+		n.update_state(NodeState::Unresponsive);
 		let r = nsio.gsn_node_update_state(&n);
 		assert!(r.is_ok());
 		
 		let node = nsio.gsn_node_by_springname("cci").unwrap();
-		assert_eq!(DvspNodeState::Unresponsive, node.state());
+		assert_eq!(NodeState::Unresponsive, node.state());
 	}
 	
 	#[test]
@@ -615,35 +606,36 @@ mod tests {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
 		
-		let mut n = Node::from_springname("ccid").unwrap();
-		n.update_state(DvspNodeState::Unresponsive);
+		let mut n = Node::from_str("ccid").unwrap();
+		n.update_state(NodeState::Unresponsive);
 		let r = nsio.gsn_node_update_state(&n);
 		assert!(r.is_err());
 		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
 	}
 
 	#[test]
-	fn ts_netspaceio_gsn_node_update_types_p() {
+	fn ts_netspaceio_gsn_node_update_role_p() {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
 		
-		let mut n = Node::from_springname("cci").unwrap();
-		n.update_types(DvspNodeType::Undefined as u8);
-		let r = nsio.gsn_node_update_types(&n);
+		let mut n = Node::from_str("cci").unwrap();
+		n.update_role(NodeRole::Undefined);
+		let r = nsio.gsn_node_update_role(&n);
 		assert!(r.is_ok());
 		
 		let node = nsio.gsn_node_by_springname("cci").unwrap();
-		assert_eq!(DvspNodeType::Undefined as u8, node.types());
+		assert_eq!(NodeRole::Undefined, node.role());
 	}
 	
 	#[test]
-	fn ts_netspaceio_gsn_node_update_types_f() {
+	fn ts_netspaceio_gsn_node_update_role_f() {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
 		
-		let mut n = Node::from_springname("ccid").unwrap();
-		n.update_types(DvspNodeType::Undefined as u8);
-		let r = nsio.gsn_node_update_types(&n);
+		let mut n : Node = Node::from_str("ccid").unwrap();
+		
+		n.update_role(NodeRole::Undefined);
+		let r = nsio.gsn_node_update_role(&n);
 		assert!(r.is_err());
 		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
 	}
@@ -653,13 +645,13 @@ mod tests {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
 		
-		let mut n = Node::from_springname("cci").unwrap();
-		n.update_service(DvspService::Undefined);
+		let mut n = Node::from_str("cci").unwrap();
+		n.update_service(NodeService::Undefined);
 		let r = nsio.gsn_node_update_service(&n);
 		assert!(r.is_ok());
 		
 		let node = nsio.gsn_node_by_springname("cci").unwrap();
-		assert_eq!(DvspService::Undefined, node.service());
+		assert_eq!(NodeService::Undefined, node.service());
 	}
 	
 	#[test]
@@ -667,8 +659,8 @@ mod tests {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
 		
-		let mut n = Node::from_springname("ccid").unwrap();
-		n.update_service(DvspService::Undefined);
+		let mut n = Node::from_str("ccid").unwrap();
+		n.update_service(NodeService::Undefined);
 		let r = nsio.gsn_node_update_service(&n);
 		assert!(r.is_err());
 		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
@@ -683,13 +675,13 @@ mod tests {
 		let v = nsio.gtn_geosub_root_nodes("esusx");
 		assert_eq!(2, v.len());
 		
-		assert_eq!("springB", v[0].springname());
-		assert_eq!([192,168,1,3], v[0].address());
-		assert_eq!(DvspService::Http, v[0].service());
+		assert_eq!("springb", v[0].springname());
+		assert_eq!("192.168.1.3", v[0].address());
+		assert_eq!(NodeService::Http, v[0].service());
 		
 		assert_eq!("greenman", v[1].hostname());
-		assert_eq!([192,168,1,2], v[1].address());
-		assert_eq!(DvspService::Dvsp, v[1].service());
+		assert_eq!("192.168.1.2", v[1].address());
+		assert_eq!(NodeService::Dvsp, v[1].service());
 	}
 	
 	#[test]
@@ -706,12 +698,12 @@ mod tests {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
 		
-		let r = nsio.gtn_geosub_node_by_springname("springB", "esusx");
+		let r = nsio.gtn_geosub_node_by_springname("springb", "esusx");
 		
 		assert!(r.is_ok());
 		
 		
-		assert_eq!("springB", r.unwrap().springname());
+		assert_eq!("springb", r.unwrap().springname());
 	}
 
 	#[test]
@@ -719,7 +711,7 @@ mod tests {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
 		
-		let r = nsio.gtn_geosub_node_by_springname("springC", "esusx");
+		let r = nsio.gtn_geosub_node_by_springname("springc", "esusx");
 		
 		assert!(r.is_err());
 	}
@@ -729,18 +721,18 @@ mod tests {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
 		
-		let mut node = Node::from_node_string("springZ,hostZ,192.168.172.1").unwrap();
-		node.update_service(DvspService::Dvsp);
+		let mut node = Node::from_str("springz,hostz,192.168.172.1").unwrap();
+		node.update_service(NodeService::Dvsp);
 		assert!(nsio.gtn_geosub_register_node(&node, "testnet").is_ok());
 		
-		let r = nsio.gtn_geosub_node_by_springname("springZ", "testnet");
+		let r = nsio.gtn_geosub_node_by_springname("springz", "testnet");
 		assert!(r.is_ok());
 		
 		let n = r.unwrap();
 		
-		assert_eq!("springZ", n.springname());
-		assert_eq!([192,168,172,1], n.address());
-		assert_eq!(DvspService::Dvsp, n.service());		
+		assert_eq!("springz", n.springname());
+		assert_eq!("192.168.172.1", n.address());
+		assert_eq!(NodeService::Dvsp, n.service());		
 		
 		
 	}
@@ -750,7 +742,8 @@ mod tests {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
 		
-		let node = Node::from_node_string("springB,hostZ,192.168.172.1").unwrap();
+		let node = Node::from_str("springb,hostz,192.168.172.1").unwrap();
+		
 		assert!(nsio.gtn_geosub_register_node(&node, "esusx").is_err());
 	}
 	
@@ -758,18 +751,18 @@ mod tests {
 	fn ts_netspaceio_gtn_geosub_unregister_node_p() {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let node = Node::from_springname("springA").unwrap();
+		let node = Node::from_str("springa").unwrap();
 		let r = nsio.gtn_geosub_unregister_node(&node, "esusx");
 		
 		assert!(r.is_ok());
 		
-		assert!(nsio.gtn_geosub_node_by_springname("springC", "esusx").is_err());
+		assert!(nsio.gtn_geosub_node_by_springname("springc", "esusx").is_err());
 	}
 	#[test]
 	fn ts_netspaceio_gtn_geosub_unregister_node_f() {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let node = Node::from_springname("springC").unwrap();
+		let node = Node::from_str("springc").unwrap();
 		assert!(nsio.gtn_geosub_unregister_node(&node, "esusx").is_err());
 		assert!(nsio.gtn_geosub_unregister_node(&node, "esusxs").is_err());
 
@@ -779,7 +772,7 @@ mod tests {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
 		
-		let n = Node::from_springname("cci").unwrap();
+		let n = Node::from_str("cci").unwrap();
 		
 		assert!(netspace_routine_is_registered(&n, &nsio));
 		
@@ -790,7 +783,7 @@ mod tests {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
 		
-		let n = Node::from_node_string("ccid,dvsnode.greenman.zus,192.168.1.2").unwrap();
+		let n = Node::from_str("ccid,dvsnode.greenman.zus,192.168.1.2").unwrap();
 		assert_eq!(false, netspace_routine_is_registered(&n, &nsio));
 				
 	}
@@ -813,16 +806,15 @@ mod tests {
 	fn ts_netspace_routine_is_address_gsn_root_p() {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let addr = [192,168,1,2];
 		
-		assert!(netspace_routine_is_address_gsn_root(&addr, "esusx", &nsio));
+		assert!(netspace_routine_is_address_gsn_root("192.168.1.2", "esusx", &nsio));
 	}
 
 	#[test]
 	fn ts_netspace_routine_is_address_gsn_root_f() {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let addr = [192,168,1,8];
+		let addr = "192.168.1.8";
 		
 		assert_eq!(false, netspace_routine_is_address_gsn_root(&addr, "esusx", &nsio));
 		assert_eq!(false, netspace_routine_is_address_gsn_root(&addr, "esusxs", &nsio));

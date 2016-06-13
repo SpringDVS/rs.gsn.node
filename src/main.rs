@@ -7,11 +7,9 @@ extern crate spring_dvs;
 
 use std::env;
 
-use spring_dvs::model::Netspace;
-use spring_dvs::protocol::*;
-
 
 mod netspace;
+/*
 mod service;
 mod protocol;
 mod config;
@@ -45,3 +43,7 @@ fn main() {
     	Err(_) => {println!("[Error]")},
     }
 }
+
+*/
+
+fn main() { }
