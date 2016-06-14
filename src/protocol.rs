@@ -2,6 +2,7 @@ pub use std::net::{SocketAddr};
 
 extern crate spring_dvs;
 
+use spring_dvs::enums::Success;
 pub use spring_dvs::spaces::{Netspace,NetspaceFailure};
 pub use spring_dvs::node::*;
 
@@ -45,6 +46,8 @@ impl Protocol {
 		
 		match msg.cmd {
 			CmdType::Register => Protocol::register_action(msg, &svr),
+			CmdType::Unregister => Protocol::unregister_action(msg, &svr),
+			CmdType::Info => Protocol::info_action(msg, &svr),
 			_ => Message::from_bytes(b"104").unwrap()
 		}
 		
@@ -61,7 +64,47 @@ impl Protocol {
 			Err(NetspaceFailure::DuplicateNode) =>  response(Response::NetspaceDuplication),
 			_ => response(Response::NetspaceError)
 		}
+	}
+	
+	fn unregister_action(msg: &Message, svr: &Svr) -> Message {
+		let single : &ContentNodeSingle = msg_single!(msg.content);
+		let n = Node::from_node_single(&single.nsingle);
+		let addr = ipaddr_str(svr.sock.ip());
+		match Protocol::source_valid(&n, &addr, svr) {
+			Ok(_) => { }
+			Err(r) => return response(r)
+		}
+
+		match svr.nio.gsn_node_unregister(&n) {
+			Ok(_) => response(Response::Ok),
+			_ => response(Response::NetspaceDuplication)
+			
+		}
+	}
+	
+	fn info_action(msg: &Message, svr: &Svr) -> Message {
+		let np : &ContentNodeProperty = msg_info_property!(msg.content);
 		
+		let node : Node = match svr.nio.gsn_node_by_springname(&np.spring) {
+			Ok(n) => n,
+			_ => return response(Response::NetspaceError)
+		};
+		
+		let mut info = node.to_node_info_property(np.property.clone());
+		let crni = ContentNodeInfo::new( info );
+		
+		response_content(Response::Ok, ResponseContent::NodeInfo(crni) )
+		
+	}
+	
+	fn source_valid(n: &Node, addr: &str, svr: &Svr) -> Result<Success,Response> {
+		match svr.nio.gsn_node_by_springname(n.springname()) {
+			Ok(n) =>  match n.address() == addr {
+				true => Ok(Success::Ok),
+				false => Err(Response::NetworkError),
+			},
+			Err(e) => Err(Response::NetspaceError)
+		}
 	}
 	
 }
@@ -107,10 +150,10 @@ mod tests {
 	
 	macro_rules! assert_match {
 		($e: expr, $p: pat) => (
-			match $e {
+			assert!(match $e {
 				$p => true,
 				_ => false,
-			}
+			})
 		)
 	}
 	
@@ -178,5 +221,83 @@ mod tests {
 		assert_eq!( n.role(), NodeRole::Org);
 		assert_eq!( n.service(), NodeService::Http);
 	}
+
+	#[test]
+	fn ts_protocol_register_fail_duplicate() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add duplicate
+		ns.gsn_node_register(&Node::from_str("spring").unwrap());
+		
+		let m = Protocol::process(&new_msg("register spring,host;org;http"), svr);
+		assert_eq!(m.cmd, CmdType::Response);
+		assert_match!(m.content, MessageContent::Response(_));
+		
+		assert_eq!(msg_response!(m.content).code, Response::NetspaceDuplication);
+	}
+
+	#[test]
+	fn ts_protocol_unregister_pass() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		ns.gsn_node_register(&Node::from_str("spring:spring,address:192.168.1.2").unwrap());
+		
+		let m = Protocol::process(&new_msg("unregister spring"), svr);
+		assert_eq!(m.cmd, CmdType::Response);
+		assert_match!(m.content, MessageContent::Response(_));
+		
+		assert_eq!(msg_response!(m.content).code, Response::Ok);
+		
+		assert_match!(ns.gsn_node_by_springname("spring"), Err(NetspaceFailure::NodeNotFound) );
+	}
+
+	#[test]
+	fn ts_protocol_unregister_fail_no_node() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+		
+		let m = Protocol::process(&new_msg("unregister spring"), svr);
+		assert_eq!(m.cmd, CmdType::Response);
+		assert_match!(m.content, MessageContent::Response(_));
+		
+		assert_eq!(msg_response!(m.content).code, Response::NetspaceError);
+	}
 	
+	#[test]
+	fn ts_protocol_unregister_fail_wrong_src() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		ns.gsn_node_register(&Node::from_str("spring:spring,address:192.168.1.3").unwrap());
+		
+		let m = Protocol::process(&new_msg("unregister spring"), svr);
+		assert_eq!(m.cmd, CmdType::Response);
+		assert_match!(m.content, MessageContent::Response(_));
+		
+		assert_eq!(msg_response!(m.content).code, Response::NetworkError);
+	}
+	
+	#[test]
+	fn ts_protocol_info_hostname() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		ns.gsn_node_register(&Node::from_str("spring:foo,host:foobar").unwrap());
+		
+		let m = Protocol::process(&new_msg("info node foo hostname"), svr);
+		assert_eq!(m.cmd, CmdType::Response);
+		assert_match!(m.content, MessageContent::Response(_));
+		
+		assert_eq!(msg_response!(m.content).code, Response::Ok);
+		assert_match!(msg_response!(m.content).content, ResponseContent::NodeInfo(_));
+		let ni = msg_response_nodeinfo!(m.content);
+		
+		assert_eq!(ni.info.host, "foobar");
+		
+	}
 }
