@@ -2,17 +2,19 @@
  * Author:  Charlie Fyvie-Gauld (cfg@zunautica.org)
  * License: GPLv3 (http://www.gnu.org/licenses/gpl-3.0.txt)
  */
-#![allow(unused_imports)]
+
+#[macro_use]
 extern crate spring_dvs;
 
-use std::env;
+//use std::env;
 
-
+mod config;
 mod netspace;
+mod protocol;
+
 /*
 mod service;
-mod protocol;
-mod config;
+
 mod resolution;
 mod node_config;
 mod requests;
