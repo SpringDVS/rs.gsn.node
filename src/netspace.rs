@@ -4,7 +4,8 @@ extern crate sqlite;
 
 pub use spring_dvs::enums::{Failure,Success};
 pub use spring_dvs::node::{Node,NodeRole,NodeService,NodeState,ParseFailure};
-pub use spring_dvs::spaces::{Netspace};
+pub use spring_dvs::spaces::{Netspace,NetspaceFailure};
+
 
 
 use self::sqlite::{State,Statement};
@@ -35,7 +36,7 @@ impl NetspaceIo {
 	}
 	
 	
-	fn fill_node(&self, statement: &sqlite::Statement) -> Result<Node,Failure> {
+	fn fill_node(&self, statement: &sqlite::Statement) -> Result<Node,NetspaceFailure> {
 		let spring = statement.read::<String>(1).unwrap();
 		let host = statement.read::<String>(2).unwrap();
 		let addr = statement.read::<String>(3).unwrap();
@@ -60,17 +61,17 @@ impl NetspaceIo {
 		v
 	}
 	
-	fn node_from_statement(&self, statement: &mut Statement) -> Result<Node,Failure> {
+	fn node_from_statement(&self, statement: &mut Statement) -> Result<Node,NetspaceFailure> {
 
 		match statement.next() {
 			Ok(state) => match state {
 				
 							State::Row => self.fill_node(&statement),
-			 				_ => Err(Failure::InvalidArgument)
+			 				_ => Err(NetspaceFailure::NodeNotFound)
 			 				
 						},
 
-			_ => Err(Failure::InvalidArgument)
+			_ => Err(NetspaceFailure::DatabaseError)
 
 		}
 		
@@ -143,7 +144,7 @@ impl Netspace for NetspaceIo {
 		self.vector_from_statement(&mut statement)
 	}
 	
-	fn gsn_node_by_springname(&self, name: &str) -> Result<Node, Failure> {
+	fn gsn_node_by_springname(&self, name: &str) -> Result<Node, NetspaceFailure> {
 		
 		let mut statement = self.db.prepare("
     	SELECT * FROM geosub_netspace WHERE springname = ?
@@ -154,7 +155,7 @@ impl Netspace for NetspaceIo {
 		self.node_from_statement(&mut statement)
 	}
 	
-	fn gsn_node_by_hostname(&self, name: &str) -> Result<Node, Failure> {
+	fn gsn_node_by_hostname(&self, name: &str) -> Result<Node,NetspaceFailure> {
 		
 		let mut statement = self.db.prepare("
     	SELECT * FROM geosub_netspace WHERE hostname = ?
@@ -177,10 +178,10 @@ impl Netspace for NetspaceIo {
 	}
 	
 	
-	fn gsn_node_register(&self, node: &Node) -> Result<Success,Failure> {
+	fn gsn_node_register(&self, node: &Node) -> Result<Success,NetspaceFailure> {
 		
 		if self.gsn_node_by_springname(node.springname()).is_ok() {
-			return Err(Failure::Duplicate)
+			return Err(NetspaceFailure::DuplicateNode)
 		}
 		
 		let mut statement = self.db.prepare(
@@ -196,14 +197,14 @@ impl Netspace for NetspaceIo {
 		statement.bind(6, &sqlite::Value::Integer( node.role() as i64 ) ).unwrap();
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
-			Err(_) => Err(Failure::InvalidArgument)   
+			Err(_) => Err(NetspaceFailure::NodeNotFound)   
 		}
 		
 	}
 
-	fn gsn_node_unregister(&self, node: &Node) -> Result<Success,Failure> {
+	fn gsn_node_unregister(&self, node: &Node) -> Result<Success,NetspaceFailure> {
 		if self.gsn_node_by_springname(node.springname()).is_err() {
-			return Err(Failure::InvalidArgument)
+			return Err(NetspaceFailure::NodeNotFound)
 		}
 		
 		let mut statement = self.db.prepare(
@@ -214,14 +215,14 @@ impl Netspace for NetspaceIo {
 		
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
-			Err(_) => Err(Failure::InvalidArgument)   
+			Err(_) => Err(NetspaceFailure::NodeNotFound)   
 		}		
 	}
 
-	fn gsn_node_update_state(&self, node: &Node) -> Result<Success,Failure> {
+	fn gsn_node_update_state(&self, node: &Node) -> Result<Success,NetspaceFailure> {
 	
 		if self.gsn_node_by_springname(node.springname()).is_err() {
-			return Err(Failure::InvalidArgument)
+			return Err(NetspaceFailure::NodeNotFound)
 		}
 		
 		let mut statement = self.db.prepare(
@@ -235,14 +236,14 @@ impl Netspace for NetspaceIo {
 		
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
-			Err(_) => Err(Failure::InvalidArgument)   
+			Err(_) => Err(NetspaceFailure::NodeNotFound)   
 		}
 	}
 	
-	fn gsn_node_update_role(&self, node: &Node) -> Result<Success,Failure> {
+	fn gsn_node_update_role(&self, node: &Node) -> Result<Success,NetspaceFailure> {
 	
 		if self.gsn_node_by_springname(node.springname()).is_err() {
-			return Err(Failure::InvalidArgument)
+			return Err(NetspaceFailure::NodeNotFound)
 		}
 		
 		let mut statement = self.db.prepare(
@@ -256,14 +257,14 @@ impl Netspace for NetspaceIo {
 		
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
-			Err(_) => Err(Failure::InvalidArgument)   
+			Err(_) => Err(NetspaceFailure::NodeNotFound)   
 		}
 	}
 
-	fn gsn_node_update_service(&self, node: &Node) -> Result<Success,Failure> {
+	fn gsn_node_update_service(&self, node: &Node) -> Result<Success,NetspaceFailure> {
 	
 		if self.gsn_node_by_springname(node.springname()).is_err() {
-			return Err(Failure::InvalidArgument)
+			return Err(NetspaceFailure::NodeNotFound)
 		}
 		
 		let mut statement = self.db.prepare(
@@ -277,7 +278,7 @@ impl Netspace for NetspaceIo {
 		
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
-			Err(_) => Err(Failure::InvalidArgument)   
+			Err(_) => Err(NetspaceFailure::NodeNotFound)   
 		}
 	}
 	
@@ -294,7 +295,7 @@ impl Netspace for NetspaceIo {
 	}
 	
 	
-	fn gtn_geosub_node_by_springname(&self, name: &str, gsn: &str) -> Result<Node,Failure> {
+	fn gtn_geosub_node_by_springname(&self, name: &str, gsn: &str) -> Result<Node,NetspaceFailure> {
 		let mut statement = self.db.prepare("
     	SELECT * FROM geotop_netspace 
     	WHERE springname = ?
@@ -307,10 +308,10 @@ impl Netspace for NetspaceIo {
 		self.node_from_statement(&mut statement)
 	}
 
-	fn gtn_geosub_register_node(&self, node: &Node, gsn: &str) -> Result<Success,Failure> {
+	fn gtn_geosub_register_node(&self, node: &Node, gsn: &str) -> Result<Success,NetspaceFailure> {
 		
 		if self.gtn_geosub_node_by_springname(node.springname(), &gsn).is_ok() {
-			return Err(Failure::Duplicate)
+			return Err(NetspaceFailure::DuplicateNode)
 		}
 		
 		let mut statement = self.db.prepare(
@@ -327,14 +328,14 @@ impl Netspace for NetspaceIo {
 			
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
-			Err(_) => Err(Failure::InvalidArgument)   
+			Err(_) => Err(NetspaceFailure::NodeNotFound)   
 		}	
 	}
 
-	fn gtn_geosub_unregister_node(&self, node: &Node, gsn: &str) -> Result<Success,Failure> {
+	fn gtn_geosub_unregister_node(&self, node: &Node, gsn: &str) -> Result<Success,NetspaceFailure> {
 
 		if self.gtn_geosub_node_by_springname(node.springname(), &gsn).is_err() {
-			return Err(Failure::InvalidArgument)
+			return Err(NetspaceFailure::NodeNotFound)
 		}
 
 		let mut statement = self.db.prepare(
@@ -347,7 +348,7 @@ impl Netspace for NetspaceIo {
 
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
-			Err(_) => Err(Failure::InvalidArgument)   
+			Err(_) => Err(NetspaceFailure::NodeNotFound)   
 		}				
 	}
 }
@@ -393,8 +394,8 @@ pub fn netspace_routine_is_address_gsn_root(address: &str, gsn: &str, nio: &Nets
 	false
 }
 
+#[cfg(test)]
 mod tests {
-	
 	extern crate sqlite;
 	extern crate spring_dvs;
 	
@@ -563,7 +564,7 @@ mod tests {
 		assert!(r.is_err());
 		
 		let e = r.unwrap_err();
-		assert_eq!(Failure::Duplicate, e);
+		assert_eq!(NetspaceFailure::DuplicateNode, e);
 		
 	}
 
@@ -584,7 +585,7 @@ mod tests {
 		setup_netspace(nsio.db());
 		let r = nsio.gsn_node_unregister((& Node::from_str("nonname,host,192.172.1.1").unwrap()));
 		assert!(r.is_err());
-		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
+		assert_eq!(NetspaceFailure::NodeNotFound, r.unwrap_err());
 	}
 	
 	#[test]
@@ -610,7 +611,7 @@ mod tests {
 		n.update_state(NodeState::Unresponsive);
 		let r = nsio.gsn_node_update_state(&n);
 		assert!(r.is_err());
-		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
+		assert_eq!(NetspaceFailure::NodeNotFound, r.unwrap_err());
 	}
 
 	#[test]
@@ -637,7 +638,7 @@ mod tests {
 		n.update_role(NodeRole::Undefined);
 		let r = nsio.gsn_node_update_role(&n);
 		assert!(r.is_err());
-		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
+		assert_eq!(NetspaceFailure::NodeNotFound, r.unwrap_err());
 	}
 
 	#[test]
@@ -663,7 +664,7 @@ mod tests {
 		n.update_service(NodeService::Undefined);
 		let r = nsio.gsn_node_update_service(&n);
 		assert!(r.is_err());
-		assert_eq!(Failure::InvalidArgument, r.unwrap_err());
+		assert_eq!(NetspaceFailure::NodeNotFound, r.unwrap_err());
 	}
 	
 	
@@ -818,5 +819,6 @@ mod tests {
 		
 		assert_eq!(false, netspace_routine_is_address_gsn_root(&addr, "esusx", &nsio));
 		assert_eq!(false, netspace_routine_is_address_gsn_root(&addr, "esusxs", &nsio));
-	}
+	}	
+
 }
