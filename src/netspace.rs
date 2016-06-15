@@ -216,7 +216,7 @@ impl Netspace for NetspaceIo {
 		
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
-			Err(_) => Err(NetspaceFailure::NodeNotFound)   
+			Err(_) => Err(NetspaceFailure::DatabaseError)   
 		}		
 	}
 
@@ -237,7 +237,7 @@ impl Netspace for NetspaceIo {
 		
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
-			Err(_) => Err(NetspaceFailure::NodeNotFound)   
+			Err(_) => Err(NetspaceFailure::DatabaseError)   
 		}
 	}
 	
@@ -258,7 +258,7 @@ impl Netspace for NetspaceIo {
 		
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
-			Err(_) => Err(NetspaceFailure::NodeNotFound)   
+			Err(_) => Err(NetspaceFailure::DatabaseError)   
 		}
 	}
 
