@@ -161,7 +161,7 @@ impl Protocol {
 				true => Ok(Success::Ok),
 				false => Err(Response::NetworkError),
 			},
-			Err(e) => Err(Response::NetspaceError)
+			Err(_) => Err(Response::NetspaceError)
 		}
 	}
 	
@@ -224,14 +224,19 @@ mod tests {
 		)
 	}
 	
-	macro_rules! assert_ok{
-		($msg: expr, $svr: ident) => ( {
+	macro_rules! process_assert_response {
+		($msg: expr, $svr: ident, $response: expr) => ( {
 			let m = Protocol::process(&new_msg($msg), $svr);
 			assert_eq!(m.cmd, CmdType::Response);
 			assert_match!(m.content, MessageContent::Response(_));
-			assert_eq!(msg_response!(m.content).code, Response::Ok);
+			assert_eq!(msg_response!(m.content).code, $response);
 			m
 		} )
+	}
+	macro_rules! process_assert_ok{
+		($msg: expr, $svr: ident) => (
+			process_assert_response!($msg, $svr, Response::Ok)
+		 )
 	}
 	
 	fn new_netspace() -> NetspaceIo {
@@ -276,11 +281,15 @@ mod tests {
 	}
 	
 	fn add_node(ns: &Netspace) {
-		ns.gsn_node_register(&Node::from_str("spring:foo,host:foobar,address:192.168.1.2,role:hub,service:http,state:enabled").unwrap());
+		try_panic!(ns.gsn_node_register(&Node::from_str("spring:foo,host:foobar,address:192.168.1.2,role:hub,service:http,state:enabled").unwrap()));
+	}
+	
+	fn add_node_with_name(name: &str, ns: &Netspace) {
+		try_panic!(ns.gsn_node_register(&Node::from_str(&format!("spring:{},host:foobar,address:192.168.1.2,role:hub,service:http,state:enabled",name)).unwrap()));
 	}
 
 	fn add_remote_node(ns: &Netspace) {
-		ns.gsn_node_register(&Node::from_str("spring:foo,host:foobar,address:192.168.1.3,role:hub,service:http,state:enabled").unwrap());
+		try_panic!(ns.gsn_node_register(&Node::from_str("spring:foo,host:foobar,address:192.168.1.3,role:hub,service:http,state:enabled").unwrap()));
 	}
 	
 	fn get_node(s: &str, ns: &Netspace) -> Node {
@@ -291,12 +300,11 @@ mod tests {
 	fn ts_protocol_register_pass() {
 		let ns = new_netspace();
 		let svr = new_svr(&ns);
-		let m = Protocol::process(&new_msg("register spring,host;org;http"), svr);
-		assert_eq!(m.cmd, CmdType::Response);
-		assert_match!(m.content, MessageContent::Response(_));
 		
-		assert_eq!(msg_response!(m.content).code, Response::Ok);
-		let n : Node = try_panic!(ns.gsn_node_by_springname("spring"));
+		process_assert_ok!("register spring,host;org;http", svr);
+		
+		
+		let n : Node = get_node("spring", &ns);
 		assert_eq!( n.springname(), "spring");
 		assert_eq!( n.role(), NodeRole::Org);
 		assert_eq!( n.service(), NodeService::Http);
@@ -308,13 +316,10 @@ mod tests {
 		let svr = new_svr(&ns);
 
 		//Add duplicate
-		ns.gsn_node_register(&Node::from_str("spring").unwrap());
+		try_panic!(ns.gsn_node_register(&Node::from_str("spring").unwrap()));
 		
-		let m = Protocol::process(&new_msg("register spring,host;org;http"), svr);
-		assert_eq!(m.cmd, CmdType::Response);
-		assert_match!(m.content, MessageContent::Response(_));
-		
-		assert_eq!(msg_response!(m.content).code, Response::NetspaceDuplication);
+		process_assert_response!("register spring,host;org;http", svr, Response::NetspaceDuplication);
+
 	}
 
 	#[test]
@@ -323,15 +328,10 @@ mod tests {
 		let svr = new_svr(&ns);
 
 		//Add already registered
-		ns.gsn_node_register(&Node::from_str("spring:spring,address:192.168.1.2").unwrap());
+		try_panic!(ns.gsn_node_register(&Node::from_str("spring:spring,address:192.168.1.2").unwrap()));
 		
-		let m = Protocol::process(&new_msg("unregister spring"), svr);
-		assert_eq!(m.cmd, CmdType::Response);
-		assert_match!(m.content, MessageContent::Response(_));
-		
-		assert_eq!(msg_response!(m.content).code, Response::Ok);
-		
-		assert_match!(ns.gsn_node_by_springname("spring"), Err(NetspaceFailure::NodeNotFound) );
+		process_assert_ok!("unregister spring", svr);
+		assert_match!( ns.gsn_node_by_springname("spring"), Err(NetspaceFailure::NodeNotFound) );
 	}
 
 	#[test]
@@ -352,7 +352,7 @@ mod tests {
 		let svr = new_svr(&ns);
 
 		//Add already registered
-		ns.gsn_node_register(&Node::from_str("spring:spring,address:192.168.1.3").unwrap());
+		try_panic!(ns.gsn_node_register(&Node::from_str("spring:spring,address:192.168.1.3").unwrap()));
 		
 		let m = Protocol::process(&new_msg("unregister spring"), svr);
 		assert_eq!(m.cmd, CmdType::Response);
@@ -369,7 +369,7 @@ mod tests {
 		//Add already registered
 		add_node(&ns);
 		
-		let m = assert_ok!("info node foo hostname", svr);
+		let m = process_assert_ok!("info node foo hostname", svr);
 
 		assert_match!(msg_response!(m.content).content, ResponseContent::NodeInfo(_));
 		let ni = msg_response_nodeinfo!(m.content);
@@ -390,7 +390,7 @@ mod tests {
 		//Add already registered
 		add_node(&ns);
 		
-		let m = assert_ok!("info node foo address", svr);
+		let m = process_assert_ok!("info node foo address", svr);
 
 		assert_match!(msg_response!(m.content).content, ResponseContent::NodeInfo(_));
 		let ni = msg_response_nodeinfo!(m.content);
@@ -411,7 +411,7 @@ mod tests {
 		//Add already registered
 		add_node(&ns);
 		
-		let m = assert_ok!("info node foo service", svr);
+		let m = process_assert_ok!("info node foo service", svr);
 
 		assert_match!(msg_response!(m.content).content, ResponseContent::NodeInfo(_));
 		let ni = msg_response_nodeinfo!(m.content);
@@ -432,7 +432,7 @@ mod tests {
 		//Add already registered
 		add_node(&ns);
 		
-		let m = assert_ok!("info node foo state", svr);
+		let m = process_assert_ok!("info node foo state", svr);
 
 		assert_match!(msg_response!(m.content).content, ResponseContent::NodeInfo(_));
 		let ni = msg_response_nodeinfo!(m.content);
@@ -453,7 +453,7 @@ mod tests {
 		//Add already registered
 		add_node(&ns);
 		
-		let m = assert_ok!("info node foo role", svr);
+		let m = process_assert_ok!("info node foo role", svr);
 		assert_match!(msg_response!(m.content).content, ResponseContent::NodeInfo(_));
 		let ni = msg_response_nodeinfo!(m.content);
 		
@@ -473,7 +473,7 @@ mod tests {
 		//Add already registered
 		add_node(&ns);
 		
-		let m = assert_ok!("info node foo all", svr);
+		let m = process_assert_ok!("info node foo all", svr);
 
 		assert_match!(msg_response!(m.content).content, ResponseContent::NodeInfo(_));
 		let ni = msg_response_nodeinfo!(m.content);
@@ -493,24 +493,25 @@ mod tests {
 		//Add registered
 		add_node(&ns);
 		
-		let m = Protocol::process(&new_msg("info node void hostname"), svr);
-		assert_eq!(m.cmd, CmdType::Response);
-		assert_match!(m.content, MessageContent::Response(_));
-		
-		assert_eq!(msg_response!(m.content).code, Response::NetspaceError);
-		
+		process_assert_response!("info node void hostname", svr, Response::NetspaceError);		
 	}
 	
 	#[test]
-	fn ts_protocol_info_network_fail_unsupported_action() {
+	fn ts_protocol_info_network_pass() {
 		let ns = new_netspace();
 		let svr = new_svr(&ns);
 
 		//Add already registered
 		add_node(&ns);
+		add_node_with_name("croc", &ns);
 		
-		let m = assert_ok!("info network", svr);
+		let m = process_assert_ok!("info network", svr);
+		assert_match!(msg_response!(m.content).content, ResponseContent::Network(_));
+		let cn = msg_response_network!(m.content);
 		
+		assert_eq!(cn.network.len(), 2);
+		assert_eq!(cn.network[0].spring , "foo");
+		assert_eq!(cn.network[1].spring , "croc");
 	}
 	
 	#[test]
@@ -521,7 +522,7 @@ mod tests {
 		//Add already registered
 		add_node(&ns);
 		
-		assert_ok!("update foo state unspecified", svr);
+		process_assert_ok!("update foo state unspecified", svr);
 		
 		let n = get_node("foo", &ns);		
 		assert_eq!(n.state(), NodeState::Unspecified);
@@ -536,7 +537,7 @@ mod tests {
 		//Add already registered
 		add_node(&ns);
 		
-		assert_ok!("update foo state enabled", svr);
+		process_assert_ok!("update foo state enabled", svr);
 		
 		let n = get_node("foo", &ns);
 		assert_eq!(n.state(), NodeState::Enabled);
@@ -551,7 +552,7 @@ mod tests {
 		//Add already registered
 		add_node(&ns);
 		
-		assert_ok!("update foo state disabled", svr);
+		process_assert_ok!("update foo state disabled", svr);
 		
 		let n = get_node("foo", &ns);
 		assert_eq!(n.state(), NodeState::Disabled);
@@ -566,7 +567,7 @@ mod tests {
 		//Add already registered
 		add_node(&ns);
 		
-		assert_ok!("update foo state unresponsive", svr);
+		process_assert_ok!("update foo state unresponsive", svr);
 
 		let n = get_node("foo", &ns);
 		assert_eq!(n.state(), NodeState::Unresponsive);
@@ -581,12 +582,7 @@ mod tests {
 		//Add already registered
 		add_node(&ns);
 		
-		let m = Protocol::process(&new_msg("update void state unspecified"), svr);
-		assert_eq!(m.cmd, CmdType::Response);
-		assert_match!(m.content, MessageContent::Response(_));
-		
-		assert_eq!(msg_response!(m.content).code, Response::NetspaceError);
-		
+		process_assert_response!("update void state unspecified", svr, Response::NetspaceError);	
 			
 	}
 	
@@ -598,13 +594,7 @@ mod tests {
 		//Add already registered
 		add_node(&ns);
 		
-		let m = Protocol::process(&new_msg("update foo role hub"), svr);
-		assert_eq!(m.cmd, CmdType::Response);
-		assert_match!(m.content, MessageContent::Response(_));
-		
-		assert_eq!(msg_response!(m.content).code, Response::UnsupportedAction);
-		
-			
+		process_assert_response!("update foo role hub", svr, Response::UnsupportedAction);
 	}
 	
 	#[test]
