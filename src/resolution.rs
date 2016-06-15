@@ -1,10 +1,7 @@
-use spring_dvs::model::{Url,Node,Netspace};
-use spring_dvs::enums::{Failure,DvspMsgType,DvspService,DvspNodeType};
-use spring_dvs::protocol::{Packet, FrameResolution};
-use spring_dvs::serialise::{NetSerial};
+use spring_dvs::node::*;
+use spring_dvs::spaces::Netspace;
+//use service::chain_request;
 
-use service::chain_request;
-use netspace::NetspaceIo;
 use node_config::*;
 
 /*
@@ -17,46 +14,54 @@ use node_config::*;
  * The Springname is NOT the GSN
  */
 
+pub enum ResolutionFailure {
+	InvalidUri,
+	InvalidRoute,
+	NoHubs,
+}
+
 pub enum ResolutionResult {
-	Err(Failure),
+	Err(ResolutionFailure),
 	Network(Vec<Node>),
 	Node(Node),
 	Chain(Vec<u8>),
 }
 
-pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
+pub fn resolve_uri(uri: &str, nio: &Netspace) -> ResolutionResult {
 	
-	let mut url : Url = match Url::new(url) {
-		Err(e) => return ResolutionResult::Err(e),
+	let mut uri : Uri = match Uri::new(uri) {
+		Err(e) => return ResolutionResult::Err(ResolutionFailure::InvalidUri),
 		Ok(u) => u
 	};
 
 	
 	
-	if url.gtn() != "" {
-		if url.glq() != "" {
-			// Handle geolocation here
-			println!("Geoloc");
-			return ResolutionResult::Err(Failure::InvalidArgument)
-		} else {
-			// We don't need no GTN
-			url.route_mut().pop();
+	if uri.gtn() != "" {
+		
+		match uri.query_param("__meta") {
+			Some(v) => {
+				// *** Geolocation query goes here here
+				return ResolutionResult::Err(ResolutionFailure::InvalidRoute)
+			},
+			None => {
+				uri.route_mut().pop();
+			}
 		}
 	}
 
 	
 	// Check to see if we are one and the same with the top GSN
-	if url.route().len() > 1 {
+	if uri.route().len() > 1 {
 		
 		// Now changed to checking a geosub -- FIXED
-		if url.route().last().unwrap().as_ref() == node_geosub() {
-			url.route_mut().pop();
+		if uri.route().last().unwrap().as_ref() == node_geosub() {
+			uri.route_mut().pop();
 		}
 	}
 	
-	if url.route().len() == 1 {
+	if uri.route().len() == 1 {
 		
-		let node_str = url.route().last().unwrap();
+		let node_str = uri.route().last().unwrap();
 		// This might be a node, this might be a GSN --
 		// We need to handle for both
 
@@ -66,22 +71,20 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 		}
 		
 		if(node_str == node_geosub().as_str()) {
-		// ToDo: Handle for resolving roots nodes of GSN root
-		// for now we'll just resolve as this node
-			let res = format!("{},{}/{},{}", 
+			// ToDo: Handle for resolving Hub nodes of GSN root
+			// for now we'll just resolve as this node
+			let res = format!("spring:{},host:{},address:{},role:hub,service:dvsp", 
 				node_springname(),
 				node_hostname(),
-				node_resource(),
 				node_address()
 			);
-			let mut n = Node::from_node_string(res.as_str()).unwrap();
-			n.update_service(DvspService::Dvsp);
-			n.update_types(DvspNodeType::Root as u8);
+
+			let mut n = Node::from_str(res.as_str()).unwrap();
 			ResolutionResult::Node(n)
 		} else {
-			ResolutionResult::Err(Failure::InvalidArgument)
+			ResolutionResult::Err(ResolutionFailure::InvalidRoute)
 		}
-	} else if url.route().len() > 1 {
+	} else if uri.route().len() > 1 {
 
 		println!("Pass through");
 		
@@ -89,25 +92,26 @@ pub fn resolve_url(url: &str, nio: &NetspaceIo) -> ResolutionResult {
 		// request chaining, so reduce load on network and also
 		// provide faster results for regular requests
 
-		let nodes = nio.gtn_geosub_root_nodes(url.route().last().unwrap().as_ref());
-		url.route_mut().pop();
+		let nodes = nio.gtn_geosub_root_nodes(uri.route().last().unwrap().as_ref());
+		uri.route_mut().pop();
 
 		// Note: For now we'll just use the first one for testing
 		// purposes
-		if(nodes.is_empty() == true) { return ResolutionResult::Err(Failure::InvalidArgument) }
-		println!("Chaining to: {}", nodes[0].to_node_string());
-		let frame  = FrameResolution::new(&url.to_string());
-		let mut p = Packet::new(DvspMsgType::GsnResolution);
-		p.write_content(&frame.serialise().as_ref()).unwrap();
+		if nodes.is_empty() { return ResolutionResult::Err(ResolutionFailure::NoHubs) }
+		println!("Chaining to: {}", nodes[0].to_node_triple().unwrap());
+		let m = Message {
+			cmd: CmdType::Resolve,
+			content: MessageContent::Resolve( ContentUri { uri: uri } )
+		};
 		
 		// ToDo:  Handle timeout from bad route
 		
-		match chain_request(p.serialise(), &nodes[0]) {
-			Ok(bytes) => ResolutionResult::Chain(bytes),
-			Err(f) => ResolutionResult::Err(f),
-		}
-
+		//match chain_request(m.as_bytes(), &nodes[0]) {
+			//Ok(bytes) => ResolutionResult::Chain(bytes),
+			//Err(f) => ResolutionResult::Err(f),
+		//}
+		ResolutionResult::Err(ResolutionFailure::InvalidUri)
 	} else {
-		ResolutionResult::Err(Failure::InvalidArgument)
+		ResolutionResult::Err(ResolutionFailure::InvalidRoute)
 	}
 }
