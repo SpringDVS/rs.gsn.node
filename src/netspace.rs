@@ -41,7 +41,7 @@ impl NetspaceIo {
 		let host = statement.read::<String>(2).unwrap();
 		let addr = statement.read::<String>(3).unwrap();
 		let service = NodeService::from_i64(statement.read::<i64>(4).unwrap());
-		let state = NodeState::from_i64(statement.read::<i64>(4).unwrap());
+		let state = NodeState::from_i64(statement.read::<i64>(5).unwrap());
 		let role =  NodeRole::from_i64(statement.read::<i64>(6).unwrap());
 		
 		Ok(Node::new(&spring, &host, &addr, service, state, role))
@@ -151,7 +151,6 @@ impl Netspace for NetspaceIo {
 		").unwrap();
 
 		statement.bind(1, &sqlite::Value::String( String::from(name) ) ).unwrap();
-		
 		self.node_from_statement(&mut statement)
 	}
 	
@@ -193,7 +192,9 @@ impl Netspace for NetspaceIo {
 		statement.bind(2, &sqlite::Value::String( String::from(node.hostname()) ) ).unwrap();
 		statement.bind(3, &sqlite::Value::String( String::from(node.address()) )).unwrap();
 		statement.bind(4, &sqlite::Value::Integer( node.service() as i64 ) ).unwrap();
-		statement.bind(5, &sqlite::Value::Integer( node.state() as i64 ) ).unwrap();
+		
+		// Regardless of what is set -- the node should be disabled when it is registered
+		statement.bind(5, &sqlite::Value::Integer( NodeState::Disabled as i64 ) ).unwrap();
 		statement.bind(6, &sqlite::Value::Integer( node.role() as i64 ) ).unwrap();
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
