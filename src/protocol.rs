@@ -316,7 +316,7 @@ mod tests {
 		let svr = new_svr(&ns);
 
 		//Add duplicate
-		try_panic!(ns.gsn_node_register(&Node::from_str("spring").unwrap()));
+		add_node_with_name("spring", &ns);
 		
 		process_assert_response!("register spring,host;org;http", svr, Response::NetspaceDuplication);
 
@@ -605,12 +605,7 @@ mod tests {
 		//Add already registered
 		add_remote_node(&ns);
 		
-		let m = Protocol::process(&new_msg("update foo state unresponsive"), svr);
-		assert_eq!(m.cmd, CmdType::Response);
-		assert_match!(m.content, MessageContent::Response(_));
-		
-		assert_eq!(msg_response!(m.content).code, Response::NetworkError);
-		
+		process_assert_response!("update foo state unresponsive", svr, Response::NetworkError);
 			
 	}
 }
