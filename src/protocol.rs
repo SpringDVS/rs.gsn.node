@@ -207,6 +207,10 @@ mod tests {
 		}
 	}
 	
+	fn add_node(ns: &Netspace) {
+		ns.gsn_node_register(&Node::from_str("spring:foo,host:foobar,address:172.168.1.1,role:hub,service:http,state:enabled").unwrap());
+	} 
+	
 	#[test]
 	fn ts_protocol_register_pass() {
 		let ns = new_netspace();
@@ -282,12 +286,12 @@ mod tests {
 	}
 	
 	#[test]
-	fn ts_protocol_info_hostname() {
+	fn ts_protocol_info_hostname_pass() {
 		let ns = new_netspace();
 		let svr = new_svr(&ns);
 
 		//Add already registered
-		ns.gsn_node_register(&Node::from_str("spring:foo,host:foobar").unwrap());
+		add_node(&ns);
 		
 		let m = Protocol::process(&new_msg("info node foo hostname"), svr);
 		assert_eq!(m.cmd, CmdType::Response);
@@ -298,6 +302,145 @@ mod tests {
 		let ni = msg_response_nodeinfo!(m.content);
 		
 		assert_eq!(ni.info.host, "foobar");
+		assert!(ni.info.spring.is_empty());
+		assert!(ni.info.address.is_empty());
+		assert_eq!(ni.info.service, NodeService::Undefined);
+		assert_eq!(ni.info.state, NodeState::Unspecified);
+		assert_eq!(ni.info.role, NodeRole::Undefined);	
+	}
+	
+	#[test]
+	fn ts_protocol_info_address_pass() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		add_node(&ns);
+		
+		let m = Protocol::process(&new_msg("info node foo address"), svr);
+		assert_eq!(m.cmd, CmdType::Response);
+		assert_match!(m.content, MessageContent::Response(_));
+		
+		assert_eq!(msg_response!(m.content).code, Response::Ok);
+		assert_match!(msg_response!(m.content).content, ResponseContent::NodeInfo(_));
+		let ni = msg_response_nodeinfo!(m.content);
+		
+		assert!(ni.info.host.is_empty());
+		assert!(ni.info.spring.is_empty());
+		assert_eq!(ni.info.address, "172.168.1.1");
+		assert_eq!(ni.info.service, NodeService::Undefined);
+		assert_eq!(ni.info.state, NodeState::Unspecified);
+		assert_eq!(ni.info.role, NodeRole::Undefined);	
+	}
+
+	#[test]
+	fn ts_protocol_info_service_pass() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		add_node(&ns);
+		
+		let m = Protocol::process(&new_msg("info node foo service"), svr);
+		assert_eq!(m.cmd, CmdType::Response);
+		assert_match!(m.content, MessageContent::Response(_));
+		
+		assert_eq!(msg_response!(m.content).code, Response::Ok);
+		assert_match!(msg_response!(m.content).content, ResponseContent::NodeInfo(_));
+		let ni = msg_response_nodeinfo!(m.content);
+		
+		assert!(ni.info.host.is_empty());
+		assert!(ni.info.spring.is_empty());
+		assert!(ni.info.address.is_empty());
+		assert_eq!(ni.info.service, NodeService::Http);
+		assert_eq!(ni.info.state, NodeState::Unspecified);
+		assert_eq!(ni.info.role, NodeRole::Undefined);	
+	}
+
+	#[test]
+	fn ts_protocol_info_state_pass() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		add_node(&ns);
+		
+		let m = Protocol::process(&new_msg("info node foo state"), svr);
+		assert_eq!(m.cmd, CmdType::Response);
+		assert_match!(m.content, MessageContent::Response(_));
+		
+		assert_eq!(msg_response!(m.content).code, Response::Ok);
+		assert_match!(msg_response!(m.content).content, ResponseContent::NodeInfo(_));
+		let ni = msg_response_nodeinfo!(m.content);
+		
+		assert!(ni.info.host.is_empty());
+		assert!(ni.info.spring.is_empty());
+		assert!(ni.info.address.is_empty());
+		assert_eq!(ni.info.service, NodeService::Undefined);
+		assert_eq!(ni.info.state, NodeState::Disabled);
+		assert_eq!(ni.info.role, NodeRole::Undefined);	
+	}
+
+	#[test]
+	fn ts_protocol_info_role_pass() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		add_node(&ns);
+		
+		let m = Protocol::process(&new_msg("info node foo role"), svr);
+		assert_eq!(m.cmd, CmdType::Response);
+		assert_match!(m.content, MessageContent::Response(_));
+		
+		assert_eq!(msg_response!(m.content).code, Response::Ok);
+		assert_match!(msg_response!(m.content).content, ResponseContent::NodeInfo(_));
+		let ni = msg_response_nodeinfo!(m.content);
+		
+		assert!(ni.info.host.is_empty());
+		assert!(ni.info.spring.is_empty());
+		assert!(ni.info.address.is_empty());
+		assert_eq!(ni.info.service, NodeService::Undefined);
+		assert_eq!(ni.info.state, NodeState::Unspecified);
+		assert_eq!(ni.info.role, NodeRole::Hub);	
+	}
+	
+	#[test]
+	fn ts_protocol_info_pass() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		add_node(&ns);
+		
+		let m = Protocol::process(&new_msg("info node foo all"), svr);
+		assert_eq!(m.cmd, CmdType::Response);
+		assert_match!(m.content, MessageContent::Response(_));
+		
+		assert_eq!(msg_response!(m.content).code, Response::Ok);
+		assert_match!(msg_response!(m.content).content, ResponseContent::NodeInfo(_));
+		let ni = msg_response_nodeinfo!(m.content);
+		
+		assert_eq!(ni.info.host, "foobar");
+		assert_eq!(ni.info.spring, "foo");
+		assert_eq!(ni.info.address, "172.168.1.1");
+		assert_eq!(ni.info.service, NodeService::Http);
+		assert_eq!(ni.info.state, NodeState::Disabled);
+		assert_eq!(ni.info.role, NodeRole::Hub);	
+	}	
+	#[test]
+	fn ts_protocol_info_hostname_fail_no_node() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add registered
+		add_node(&ns);
+		
+		let m = Protocol::process(&new_msg("info node void hostname"), svr);
+		assert_eq!(m.cmd, CmdType::Response);
+		assert_match!(m.content, MessageContent::Response(_));
+		
+		assert_eq!(msg_response!(m.content).code, Response::NetspaceError);
 		
 	}
 }
