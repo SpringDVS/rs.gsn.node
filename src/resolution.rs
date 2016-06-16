@@ -132,7 +132,6 @@ pub fn resolve_uri(suri: &str, nio: &Netspace, config: &NodeConfig, chain: &Chai
 			// The GSN is not ours so perhaps it is a remote GNS
 			let gsns = nio.gtn_geosubs();
 			for g in gsns {
-				println!("********* {}",g);
 				if &g == node_str {
 
 					let nodes = nio.gtn_geosub_root_nodes(node_str);
