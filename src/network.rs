@@ -4,5 +4,6 @@ pub enum NetworkFailure {
 	Bind,
 	SocketWrite,
 	SocketRead,
+	SocketError,
 	UnsupportedAction,
 }
