@@ -5,6 +5,7 @@ extern crate sqlite;
 pub use spring_dvs::enums::{Failure,Success};
 pub use spring_dvs::node::{Node,NodeRole,NodeService,NodeState,ParseFailure};
 pub use spring_dvs::spaces::{Netspace,NetspaceFailure};
+pub use config::{NodeConfig};
 
 
 
@@ -34,7 +35,6 @@ impl NetspaceIo {
 	pub fn db(&self) -> &sqlite::Connection {
 		&self.db
 	}
-	
 	
 	fn fill_node(&self, statement: &sqlite::Statement) -> Result<Node,NetspaceFailure> {
 		let spring = statement.read::<String>(1).unwrap();
@@ -171,7 +171,17 @@ impl Netspace for NetspaceIo {
 		v
 	}
 	fn gtn_geosubs(&self) -> Vec<String> {
-		let v: Vec<String> = Vec::new();
+		
+		let mut statement = self.db.prepare(
+			"SELECT DISTINCT `geosub` FROM 
+			`geotop_netspace`
+			").unwrap();
+		
+		let mut v: Vec<String> = Vec::new();
+		
+		while let State::Row = statement.next().unwrap() {
+			v.push(statement.read::<String>(0).unwrap()); 		   
+		}
 		
 		v
 	}
@@ -393,6 +403,16 @@ pub fn netspace_routine_is_address_gsn_root(address: &str, gsn: &str, nio: &Nets
 	}
 	
 	false
+}
+
+
+pub fn netspace_add_self(ns: &Netspace, cfg: &NodeConfig) {
+	let s : String = format!("spring:{},host:{},address:{},service:dvsp,role:hub,state:enabled",cfg.springname(), cfg.hostname(), cfg.address());
+	let n = Node::from_str(&s).unwrap();
+	ns.gsn_node_register(&n);
+	ns.gsn_node_update_state(&n);
+	
+	ns.gtn_geosub_register_node(&n, &cfg.geosub());
 }
 
 #[cfg(test)]
@@ -820,6 +840,16 @@ mod tests {
 		
 		assert_eq!(false, netspace_routine_is_address_gsn_root(&addr, "esusx", &nsio));
 		assert_eq!(false, netspace_routine_is_address_gsn_root(&addr, "esusxs", &nsio));
-	}	
-
+	}
+	
+	#[test]
+	fn ts_netspaceio_gtn_geosubs_p() {
+		let nsio = NetspaceIo::new(":memory:");
+		setup_netspace(nsio.db());
+		let node = Node::from_str("springa").unwrap();
+		
+		assert_eq!(nsio.gtn_geosubs().len(), 1);
+		assert_eq!(nsio.gtn_geosubs()[0], "esusx");
+	}
+	
 }
