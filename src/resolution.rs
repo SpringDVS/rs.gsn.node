@@ -74,12 +74,16 @@ macro_rules! resolution_err {
 	}
 }
 
-pub fn resolve_uri(suri: &str, nio: &Netspace, config: &NodeConfig, chain: &Chain) -> ResolutionResult {
+pub fn resolve_uri(suri: &str, nio: &Netspace, config: &NodeConfig, chain: Box<Chain>) -> ResolutionResult {
 	
 	let mut uri : Uri = match Uri::new(suri) {
 		Err(e) => return ResolutionResult::Err(ResolutionFailure::InvalidUri),
 		Ok(u) => u
 	};
+	
+	if uri.route().len() == 0 {
+		return ResolutionResult::Err(ResolutionFailure::InvalidUri)
+	}
 	
 	if uri.gtn() != "" {
 		
@@ -166,7 +170,7 @@ pub fn resolve_uri(suri: &str, nio: &Netspace, config: &NodeConfig, chain: &Chai
 		
 		let out_bytes = m.to_bytes();
 		for node in nodes {
-			match chain.request(&out_bytes, &node) {
+			match chain.as_ref().request(&out_bytes, &node) {
 				Ok(b) => return ResolutionResult::Chain(b),
 				_ => continue
 			}
@@ -183,10 +187,12 @@ pub fn resolve_uri(suri: &str, nio: &Netspace, config: &NodeConfig, chain: &Chai
 
 mod tests {
 	use super::*;
-	use spring_dvs::protocol::{ProtocolObject,Response,Message,MessageContent,CmdType,ContentResponse,ResponseContent,ContentNodeInfo,NodeInfoFmt};
+	//use spring_dvs::protocol::{ProtocolObject,Response,Message,MessageContent,CmdType,ContentResponse,ResponseContent,ContentNodeInfo,NodeInfoFmt};
 	use ::config::{NodeConfig};
+	use ::config::mocks::MockConfig;
 	use ::netspace::{Netspace,NetspaceIo,netspace_add_self,Node,NodeRole};
 	use ::chain::Chain;
+	use ::chain::mocks::MockChain;
 	use ::network::NetworkFailure;
 	
 	macro_rules! try_panic{
@@ -208,48 +214,7 @@ mod tests {
 	}
 	
 	
-	pub struct MockConfig;
 	
-	impl ::config::NodeConfig for MockConfig {
-		
-		fn springname(&self) -> String {
-			String::from("foohub")
-		}
-		fn hostname(&self) -> String {
-			String::from("barhub.zni.lan")
-		}
-		fn geosub(&self) -> String {
-			String::from("esusx")
-		}
-		fn address(&self) -> String {
-			String::from("127.0.0.1")
-		}
-	}
-	
-	fn node_config() -> MockConfig {
-		MockConfig {  }
-	}
-	
-	pub struct MockChain {
-		target: String
-	}
-	
-	impl MockChain {
-		pub fn new(target: &str) -> MockChain {
-			MockChain {
-				target: String::from(target),
-			}
-		}
-	}
-	
-	impl Chain for MockChain {
-		
-		fn request(&self, bytes: &Vec<u8>, target: &Node) -> Result<Vec<u8>, NetworkFailure> {
-			
-			assert_eq!(target.springname(), self.target);
-			Ok(Vec::new())
-		}
-	}
 	
 	pub fn add_self(ns: &Netspace, cfg: &MockConfig) {
 		let s : String = format!("spring:{},host:{},address:{},service:dvsp,role:hub,state:enabled",cfg.springname(), cfg.hostname(), cfg.address());
@@ -276,7 +241,7 @@ mod tests {
 	macro_rules! std_init {
 		() => (
 			{
-				let cfg = node_config();
+				let cfg = MockConfig::dflt();
 				let ns = new_netspace(&cfg);
 				(ns,cfg)
 			}
@@ -321,11 +286,11 @@ mod tests {
 	fn ts_resolution_pass_org_node() {
 		
 		let (ns,cfg) = std_init!();
-		let chain = MockChain::new("");
+		let chain = Box::new(MockChain::new(""));
 		
 		add_node_with_name("cci", &ns);
 		
-		let res = resolve_uri("spring://cci.esusx.uk", &ns, &cfg,&chain);
+		let res = resolve_uri("spring://cci.esusx.uk", &ns, &cfg,chain);
 		assert_resolution!(res, ResolutionResult::Node(_));
 		assert_eq!(resolution_node!(res).springname(), "cci");
 	}
@@ -334,11 +299,11 @@ mod tests {
 	fn ts_resolution_org_node_route_fail() {
 		
 		let (ns,cfg) = std_init!();
-		let chain = MockChain::new("");
+		let chain = Box::new(MockChain::new(""));
 		
 		add_node_with_name("cci", &ns);
 		
-		let res = resolve_uri("spring://void.esusx.uk", &ns, &cfg,&chain);
+		let res = resolve_uri("spring://void.esusx.uk", &ns, &cfg,chain);
 		assert_resolution!(res, ResolutionResult::Err(_));
 		assert_eq!(resolution_err!(res), ResolutionFailure::InvalidRoute);
 	}
@@ -347,11 +312,11 @@ mod tests {
 	fn ts_resolution_org_node_fail() {
 		
 		let (ns,cfg) = std_init!();
-		let chain = MockChain::new("");
+		let chain = Box::new(MockChain::new(""));
 		
 		add_node_with_name("cci", &ns);
 		
-		let res = resolve_uri("spring://void", &ns, &cfg,&chain);
+		let res = resolve_uri("spring://void", &ns, &cfg,chain);
 		assert_resolution!(res, ResolutionResult::Err(_));
 		assert_eq!(resolution_err!(res), ResolutionFailure::InvalidRoute);
 	}
@@ -360,7 +325,7 @@ mod tests {
 	fn ts_resolution_pass_local_hubs() {
 		
 		let (ns,cfg) = std_init!();
-		let chain = MockChain::new("");
+		let chain = Box::new(MockChain::new(""));
 		
 		add_node_with_name("cci", &ns);
 		add_node_with_name("hub2", &ns);
@@ -368,7 +333,7 @@ mod tests {
 		change_node_role("hub2", NodeRole::Hybrid, &ns);
 		
 		
-		let res = resolve_uri("spring://esusx.uk", &ns, &cfg, &chain);
+		let res = resolve_uri("spring://esusx.uk", &ns, &cfg, chain);
 		assert_resolution!(res, ResolutionResult::Network(_));
 		let network = resolution_network!(res);
 
@@ -379,7 +344,7 @@ mod tests {
 	fn ts_resolution_local_hubs_fail_no_hubs() {
 		
 		let (ns,cfg) = std_init!();
-		let chain = MockChain::new("");
+		let chain = Box::new(MockChain::new(""));
 		
 		add_node_with_name("cci", &ns);
 		add_node_with_name("hub2", &ns);
@@ -387,7 +352,7 @@ mod tests {
 		change_node_role("foohub", NodeRole::Org, &ns);
 		
 		
-		let res = resolve_uri("spring://esusx.uk", &ns, &cfg, &chain);
+		let res = resolve_uri("spring://esusx.uk", &ns, &cfg, chain);
 		assert_resolution!(res, ResolutionResult::Err(_));
 		assert_eq!(resolution_err!(res), ResolutionFailure::NoHubs);
 	}
@@ -395,10 +360,10 @@ mod tests {
 	#[test]
 	fn ts_resolution_remote_hubs_pass() {
 		let (ns,cfg) = std_init!();
-		let chain = MockChain::new("");
+		let chain = Box::new(MockChain::new(""));
 		
 		add_hub_in_gsn("remotehub", "shire", &ns);
-		let res = resolve_uri("spring://shire.uk", &ns, &cfg, &chain);
+		let res = resolve_uri("spring://shire.uk", &ns, &cfg, chain);
 		
 		assert_resolution!(res, ResolutionResult::Network(_));
 		let network = resolution_network!(res);
@@ -409,28 +374,36 @@ mod tests {
 	#[test]
 	fn ts_resolution_chain_node_pass() {
 		let (ns,cfg) = std_init!();
-		let chain = MockChain::new("remotehub");
+		let chain = Box::new(MockChain::new("remotehub"));
 		
 		add_hub_in_gsn("remotehub", "shire", &ns);
-		let res = resolve_uri("spring://di.shire.uk", &ns, &cfg, &chain);
+		let res = resolve_uri("spring://di.shire.uk", &ns, &cfg, chain);
 		assert_resolution!(res, ResolutionResult::Chain(_));
 	}
 	
 	#[test]
 	fn ts_resolution_meta_fail() {
 		let (ns,cfg) = std_init!();
-		let chain = MockChain::new("remotehub");
+		let chain = Box::new(MockChain::new("remotehub"));
 		
-		let res = resolve_uri("spring://uk?__meta=outcode", &ns, &cfg, &chain);
+		let res = resolve_uri("spring://uk?__meta=outcode", &ns, &cfg, chain);
 		assert_resolution!(res, ResolutionResult::Err(ResolutionFailure::UnsupportedAction));
 	}
 	
 	#[test]
 	fn ts_resolution_top_invalid() {
 		let (ns,cfg) = std_init!();
-		let chain = MockChain::new("remotehub");
+		let chain = Box::new(MockChain::new("remotehub"));
 		
-		let res = resolve_uri("spring://uk?", &ns, &cfg, &chain);
+		let res = resolve_uri("spring://uk?", &ns, &cfg, chain);
 		assert_resolution!(res, ResolutionResult::Err(ResolutionFailure::InvalidRoute));
+	}
+	
+	#[test]
+	fn ts_resolution_invalid_uri() {
+			let (ns,cfg) = std_init!();
+		let chain = Box::new(MockChain::new(""));
+		let res = resolve_uri("spring://?", &ns, &cfg, chain);
+		assert_resolution!(res, ResolutionResult::Err(ResolutionFailure::InvalidUri));
 	}
 }

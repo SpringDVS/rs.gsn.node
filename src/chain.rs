@@ -5,7 +5,7 @@ use std::time::Duration;
 use spring_dvs::enums::{NodeService};
 use spring_dvs::node::Node;
 use spring_dvs::protocol::Port;
-use network::NetworkFailure;
+pub use network::NetworkFailure;
 
 pub trait Chain {
 	fn request(&self, bytes: &Vec<u8>, target: &Node) -> Result<Vec<u8>, NetworkFailure> ;
@@ -13,7 +13,7 @@ pub trait Chain {
 
 // ToDo clean this lot up -- better failure states
 
-struct ChainService;
+pub struct ChainService;
 
 impl ChainService {
 	fn dvsp(&self, bytes: &Vec<u8>, target: &Node) -> Result<Vec<u8>, NetworkFailure> {
@@ -53,6 +53,35 @@ impl Chain for ChainService {
 		match target.service() {
 			NodeService::Dvsp => self.dvsp(bytes,target),
 			_ => Err(NetworkFailure::UnsupportedAction)
+		}
+	}
+}
+
+pub mod mocks {
+	extern crate spring_dvs;
+	use spring_dvs::node::{Node};
+	use spring_dvs::protocol::{ProtocolObject, Message,ParseFailure};
+	
+	use super::*;
+
+	pub struct MockChain {
+		target: String
+	}
+	
+	impl MockChain {
+		pub fn new(target: &str) -> MockChain {
+			MockChain {
+				target: String::from(target),
+			}
+		}
+	}
+	
+	impl Chain for MockChain {
+		
+		fn request(&self, bytes: &Vec<u8>, target: &Node) -> Result<Vec<u8>, NetworkFailure> {
+			
+			assert_eq!(target.springname(), self.target);
+			Ok(Message::from_bytes(b"200").unwrap().to_bytes())
 		}
 	}
 }

@@ -45,7 +45,6 @@ impl Config {
 		for line in s.lines() {	
 			let kvp : Vec<&str> = line.split('=').collect();
 			if kvp.len() != 2 { continue }
-			
 			kvs.insert(String::from(kvp[0]), String::from(kvp[1]));
 		};
 		
@@ -53,7 +52,7 @@ impl Config {
 	}
 	
 	fn get_key(&self, key: &str) -> String {
-		match self.node.get("spring") {
+		match self.node.get(key) {
 			Some(s) => s.clone(),
 			None => String::new(),
 		}
@@ -70,10 +69,55 @@ impl NodeConfig for Config {
 	}
 
 	fn geosub(&self) -> String {
-		self.get_key("gsn")
+		self.get_key("geosub")
 	}
 
 	fn address(&self) -> String {
 		self.get_key("address")
 	}	
+}
+
+pub mod mocks {
+	pub struct MockConfig {
+		spring: String,
+		host: String,
+		geosub: String,
+		address: String,
+	}
+	
+	impl ::config::NodeConfig for MockConfig {
+		
+		fn springname(&self) -> String {
+			self.spring.clone()
+		}
+		fn hostname(&self) -> String {
+			self.host.clone()
+		}
+		fn geosub(&self) -> String {
+			self.geosub.clone()
+		}
+		fn address(&self) -> String {
+			self.address.clone()
+		}
+	}
+	
+	impl MockConfig {
+		pub fn dflt() -> MockConfig {
+			MockConfig {
+				spring: String::from("foohub"),
+				host: String::from("barhub.zni.lan"),
+				geosub: String::from("esusx"),
+				address: String::from("127.0.0.1"),
+			}
+		}
+		pub fn new(spring: &str, host: &str, geosub: &str, address: &str) -> MockConfig {
+			MockConfig {
+				spring: String::from(spring),
+				host: String::from(host),
+				geosub: String::from(geosub),
+				address: String::from(address),
+			}	
+		}
+	}
+	
 }
