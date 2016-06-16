@@ -4,22 +4,30 @@ extern crate spring_dvs;
 
 use spring_dvs::enums::Success;
 pub use spring_dvs::spaces::{Netspace,NetspaceFailure};
-pub use spring_dvs::node::*;
+pub use spring_dvs::node::{Node};
+pub use spring_dvs::protocol::*;
+pub use spring_dvs::uri::Uri;
 
+use chain::{Chain,ChainService};
+use resolution::{resolve_uri,ResolutionResult,ResolutionFailure};
 pub use netspace::NetspaceIo;
-pub use config::Config;
+pub use config::{NodeConfig,Config};
+
+
 //use unit_test_env;
 
 
 pub struct Svr<'s> {
 	pub sock: SocketAddr,
-	pub config: Config,
-	pub nio: &'s Netspace
+	pub config: Box<NodeConfig>,
+	pub nio: &'s Netspace,
 }
 
 impl<'s> Svr<'s> {
-	fn new(sock: SocketAddr, config: Config, nio: &'s Netspace) -> Svr<'s> {
+	fn new(sock: SocketAddr, config: Box<NodeConfig>, nio: &'s Netspace) -> Svr<'s> {
+
 		Svr{ sock:sock, config:config, nio:nio }
+		
 	}
 }
 
@@ -54,13 +62,14 @@ impl Protocol {
 	
 
 	/// Run the action through the system
-	pub fn process(msg: &Message, svr: Svr) -> Message {
+	pub fn process(msg: &Message, svr: Svr, chain: Box<Chain>) -> Message {
 		
 		match msg.cmd {
 			CmdType::Register => Protocol::register_action(msg, &svr),
 			CmdType::Unregister => Protocol::unregister_action(msg, &svr),
 			CmdType::Info => Protocol::info_action(msg, &svr),
 			CmdType::Update => Protocol::update_action(msg, &svr),
+			CmdType::Resolve => Protocol::resolve_action(msg, &svr, chain),
 			_ => Message::from_bytes(b"104").unwrap()
 		}
 		
@@ -155,6 +164,45 @@ impl Protocol {
 		}		
 	}
 	
+	fn resolve_action(msg: &Message, svr: &Svr, chain: Box<Chain>) -> Message {
+		
+		
+		let cr = msg_resolve!( msg.content );
+		let uri : Uri = cr.uri.clone();
+		match resolve_uri(&uri.to_string(), svr.nio, svr.config.as_ref(), chain) {
+			ResolutionResult::Network(net) => {
+				response_content (
+					Response::Ok,
+					ResponseContent::Network( ContentNetwork{ network: net } )
+				)				
+			},
+			ResolutionResult::Node(ni) => {
+				response_content(
+					Response::Ok,
+					ResponseContent::NodeInfo(ContentNodeInfo{ info: ni.to_node_info().unwrap() } ) 
+				)
+			},
+			ResolutionResult::Chain(ch) => {
+				match Message::from_bytes(ch.as_slice()) {
+					Ok(m) => m,
+					Err(_) =>	response(
+									Response::MalformedContent
+								)
+				}
+			},
+			ResolutionResult::Err(e) => {
+				match e {
+					ResolutionFailure::InvalidRoute => response(Response::NetspaceError),
+					ResolutionFailure::InvalidUri => response(Response::MalformedContent),
+					ResolutionFailure::UnsupportedAction => response(Response::UnsupportedAction),
+					_ => response(Response::NetworkError),
+				}
+
+			}
+		}
+		
+	}
+	
 	fn source_valid(n: &Node, svr: &Svr) -> Result<Success,Response> {
 		match svr.nio.gsn_node_by_springname(n.springname()) {
 			Ok(n) =>  match n.address() == ipaddr_str(svr.sock.ip()) {
@@ -205,6 +253,8 @@ mod tests {
 	use std::str::{FromStr};
 	
 	use super::*;
+	use ::chain::mocks::MockChain;
+	use ::config::mocks::MockConfig;
 	
 	macro_rules! assert_match {
 		($e: expr, $p: pat) => (
@@ -226,18 +276,33 @@ mod tests {
 	
 	macro_rules! process_assert_response {
 		($msg: expr, $svr: ident, $response: expr) => ( {
-			let m = Protocol::process(&new_msg($msg), $svr);
+			let m = Protocol::process(&new_msg($msg), $svr,Box::new(MockChain::new("")));
 			assert_eq!(m.cmd, CmdType::Response);
 			assert_match!(m.content, MessageContent::Response(_));
 			assert_eq!(msg_response!(m.content).code, $response);
 			m
-		} )
+		});
+		
+		($msg: expr, $svr: ident, $mock: expr, $response: expr) =>  ({
+			let m = Protocol::process(&new_msg($msg), $svr,Box::new(MockChain::new($mock)));
+			assert_eq!(m.cmd, CmdType::Response);
+			assert_match!(m.content, MessageContent::Response(_));
+			assert_eq!(msg_response!(m.content).code, $response);
+			m
+		});
+		
 	}
 	macro_rules! process_assert_ok{
 		($msg: expr, $svr: ident) => (
 			process_assert_response!($msg, $svr, Response::Ok)
-		 )
+		 );
+		
+		($msg: expr, $svr: ident, $mock: expr) => (
+			process_assert_response!($msg, $svr, $mock, Response::Ok)
+		 );
 	}
+	
+	
 	
 	fn new_netspace() -> NetspaceIo {
 		let ns = NetspaceIo::new(":memory:");
@@ -269,8 +334,8 @@ mod tests {
 		ns
 	}
 	
-	fn new_svr(ns: &Netspace) -> Svr {	
-		Svr::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::from_str("192.168.1.2").unwrap()),55400), Config::new() , ns)
+	fn new_svr(ns: &Netspace) -> Svr {
+		Svr::new(SocketAddr::new(IpAddr::V4(Ipv4Addr::from_str("192.168.1.2").unwrap()),55400), Box::new(MockConfig::dflt()) , ns)
 	}
 	
 	fn new_msg(s: &str) -> Message {
@@ -285,15 +350,33 @@ mod tests {
 	}
 	
 	fn add_node_with_name(name: &str, ns: &Netspace) {
-		try_panic!(ns.gsn_node_register(&Node::from_str(&format!("spring:{},host:foobar,address:192.168.1.2,role:hub,service:http,state:enabled",name)).unwrap()));
+		try_panic!(ns.gsn_node_register(&Node::from_str(&format!("spring:{},host:foobar,address:192.168.1.2,role:org,service:http,state:enabled",name)).unwrap()));
 	}
 
 	fn add_remote_node(ns: &Netspace) {
 		try_panic!(ns.gsn_node_register(&Node::from_str("spring:foo,host:foobar,address:192.168.1.3,role:hub,service:http,state:enabled").unwrap()));
 	}
 	
+	fn add_gsn_hub(name: &str, geosub: &str, ns: &Netspace) {
+		try_panic!(ns.gtn_geosub_register_node(&Node::from_str(&format!("spring:{},host:foobar,address:192.168.1.3,role:hub,service:http,state:enabled", name)).unwrap(), geosub));
+	}
+	
 	fn get_node(s: &str, ns: &Netspace) -> Node {
 		try_panic!(ns.gsn_node_by_springname(s))
+	}
+
+	fn change_node_role(name: &str, role: NodeRole, ns: &Netspace) {
+		let n = try_panic!(Node::from_str(&format!("spring:{},role:{}",name,role)));
+		ns.gsn_node_update_role(&n);
+	}
+	
+	pub fn add_self(ns: &Netspace, cfg: &Box<NodeConfig>) {
+		let s : String = format!("spring:{},host:{},address:{},service:dvsp,role:hub,state:enabled",cfg.springname(), cfg.hostname(), cfg.address());
+		let n = Node::from_str(&s).unwrap();
+		ns.gsn_node_register(&n);
+		ns.gsn_node_update_state(&n);
+		
+		ns.gtn_geosub_register_node(&n, &cfg.as_ref().geosub());
 	}
 	
 	#[test]
@@ -339,7 +422,7 @@ mod tests {
 		let ns = new_netspace();
 		let svr = new_svr(&ns);
 		
-		let m = Protocol::process(&new_msg("unregister spring"), svr);
+		let m = Protocol::process(&new_msg("unregister spring"), svr,Box::new(MockChain::new("")));
 		assert_eq!(m.cmd, CmdType::Response);
 		assert_match!(m.content, MessageContent::Response(_));
 		
@@ -354,7 +437,7 @@ mod tests {
 		//Add already registered
 		try_panic!(ns.gsn_node_register(&Node::from_str("spring:spring,address:192.168.1.3").unwrap()));
 		
-		let m = Protocol::process(&new_msg("unregister spring"), svr);
+		let m = Protocol::process(&new_msg("unregister spring"), svr,Box::new(MockChain::new("")));
 		assert_eq!(m.cmd, CmdType::Response);
 		assert_match!(m.content, MessageContent::Response(_));
 		
@@ -608,4 +691,91 @@ mod tests {
 		process_assert_response!("update foo state unresponsive", svr, Response::NetworkError);
 			
 	}
+	
+	#[test]
+	fn ts_protocol_resolve_pass_local_node() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		add_node_with_name("cci", &ns);
+		add_self(&ns, &svr.config);
+		
+		let m : Message = process_assert_ok!("resolve spring://cci.esusx.uk", svr);
+		assert_match!(msg_response!(m.content).content, ResponseContent::NodeInfo(_));
+		let ni = msg_response_nodeinfo!(m.content);
+		assert_eq!(ni.info.spring, "cci");
+		
+	}
+
+	#[test]
+	fn ts_protocol_resolve_pass_local_hubs() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		add_node_with_name("cci", &ns);
+		add_node_with_name("hub2", &ns);
+		change_node_role("hub2", NodeRole::Hybrid, &ns);
+		add_self(&ns, &svr.config);
+		
+		let m : Message = process_assert_ok!("resolve spring://esusx.uk", svr);
+		assert_match!(msg_response!(m.content).content, ResponseContent::Network(_));
+		let ni = msg_response_network!(m.content);
+		assert_eq!(ni.network.len(), 2);
+	}
+	
+	#[test]
+	fn ts_protocol_resolve_pass_remote_hubs() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		add_node_with_name("cci", &ns);
+		add_gsn_hub("remote", "shire", &ns);
+		add_self(&ns, &svr.config);
+		
+		let m : Message = process_assert_ok!("resolve spring://shire.uk", svr);
+		assert_match!(msg_response!(m.content).content, ResponseContent::Network(_));
+		let ni = msg_response_network!(m.content);
+		assert_eq!(ni.network.len(), 1);
+	}
+	
+	#[test]
+	fn ts_protocol_resolve_pass_chain() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		add_node_with_name("cci", &ns);
+		add_gsn_hub("remote", "shire", &ns);
+		add_self(&ns, &svr.config);
+		
+		let m : Message = process_assert_ok!("resolve spring://remote.shire.uk", svr, "remote");
+	}
+
+	#[test]
+	fn ts_protocol_resolve_fail_no_node() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		add_node_with_name("cci", &ns);
+		add_self(&ns, &svr.config);
+		
+		process_assert_response!("resolve spring://void.esusx.uk", svr, Response::NetspaceError);
+	}
+	
+	#[test]
+	fn ts_protocol_resolve_fail_unsupported_action() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+
+		//Add already registered
+		add_node_with_name("cci", &ns);
+		add_self(&ns, &svr.config);
+		
+		process_assert_response!("resolve spring://void.esusx.uk?__meta=outcode", svr, Response::UnsupportedAction);
+	}	
+
 }
