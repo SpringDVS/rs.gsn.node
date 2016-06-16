@@ -8,10 +8,13 @@ pub use spring_dvs::node::{Node};
 pub use spring_dvs::protocol::*;
 pub use spring_dvs::uri::Uri;
 
-use chain::{Chain,ChainService};
+use chain::Chain;
 use resolution::{resolve_uri,ResolutionResult,ResolutionFailure};
+
 pub use netspace::NetspaceIo;
 pub use config::{NodeConfig,Config};
+
+
 
 
 //use unit_test_env;
@@ -69,6 +72,7 @@ impl Protocol {
 			CmdType::Unregister => Protocol::unregister_action(msg, &svr),
 			CmdType::Info => Protocol::info_action(msg, &svr),
 			CmdType::Update => Protocol::update_action(msg, &svr),
+			CmdType::Service => Protocol::service_action(msg, &svr),
 			CmdType::Resolve => Protocol::resolve_action(msg, &svr, chain),
 			_ => Message::from_bytes(b"104").unwrap()
 		}
@@ -162,6 +166,11 @@ impl Protocol {
 			Ok(Success::Ok) => response(Response::Ok),
 			_ => response(Response::NetspaceError),
 		}		
+	}
+	
+	#[allow(unused_variables)]
+	fn service_action(msg: &Message, svr: &Svr) -> Message {
+		response(Response::UnsupportedService)
 	}
 	
 	fn resolve_action(msg: &Message, svr: &Svr, chain: Box<Chain>) -> Message {
@@ -367,16 +376,16 @@ mod tests {
 
 	fn change_node_role(name: &str, role: NodeRole, ns: &Netspace) {
 		let n = try_panic!(Node::from_str(&format!("spring:{},role:{}",name,role)));
-		ns.gsn_node_update_role(&n);
+		try_panic!(ns.gsn_node_update_role(&n));
 	}
 	
 	pub fn add_self(ns: &Netspace, cfg: &Box<NodeConfig>) {
 		let s : String = format!("spring:{},host:{},address:{},service:dvsp,role:hub,state:enabled",cfg.springname(), cfg.hostname(), cfg.address());
-		let n = Node::from_str(&s).unwrap();
-		ns.gsn_node_register(&n);
-		ns.gsn_node_update_state(&n);
+		let n = try_panic!(Node::from_str(&s));
+		try_panic!(ns.gsn_node_register(&n));
+		try_panic!(ns.gsn_node_update_state(&n));
 		
-		ns.gtn_geosub_register_node(&n, &cfg.as_ref().geosub());
+		try_panic!(ns.gtn_geosub_register_node(&n, &cfg.as_ref().geosub()));
 	}
 	
 	#[test]
@@ -751,7 +760,7 @@ mod tests {
 		add_gsn_hub("remote", "shire", &ns);
 		add_self(&ns, &svr.config);
 		
-		let m : Message = process_assert_ok!("resolve spring://remote.shire.uk", svr, "remote");
+		process_assert_ok!("resolve spring://remote.shire.uk", svr, "remote");
 	}
 
 	#[test]
@@ -776,6 +785,13 @@ mod tests {
 		add_self(&ns, &svr.config);
 		
 		process_assert_response!("resolve spring://void.esusx.uk?__meta=outcode", svr, Response::UnsupportedAction);
-	}	
+	}
+	
+	#[test]
+	fn ts_protocol_resolve_pass_unsupported_service() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
 
+		process_assert_response!("service spring://foohub.esusx.uk/service/", svr, Response::UnsupportedService);
+	}	
 }

@@ -18,6 +18,7 @@ pub struct Config {
 }
 
 impl Config {
+	#[allow(dead_code)]
 	pub fn new() -> Config {
 		Config {
 			node: Config::load_kvs(),
@@ -25,6 +26,7 @@ impl Config {
 		}
 	}
 	
+	#[allow(dead_code)]
 	fn load_kvs() -> HashMap<String,String> {
 		
 		let mut kvs: HashMap<String,String> = HashMap::new();
@@ -109,14 +111,6 @@ pub mod mocks {
 				geosub: String::from("esusx"),
 				address: String::from("127.0.0.1"),
 			}
-		}
-		pub fn new(spring: &str, host: &str, geosub: &str, address: &str) -> MockConfig {
-			MockConfig {
-				spring: String::from(spring),
-				host: String::from(host),
-				geosub: String::from(geosub),
-				address: String::from(address),
-			}	
 		}
 	}
 	

@@ -77,7 +77,7 @@ macro_rules! resolution_err {
 pub fn resolve_uri(suri: &str, nio: &Netspace, config: &NodeConfig, chain: Box<Chain>) -> ResolutionResult {
 	
 	let mut uri : Uri = match Uri::new(suri) {
-		Err(e) => return ResolutionResult::Err(ResolutionFailure::InvalidUri),
+		Err(_) => return ResolutionResult::Err(ResolutionFailure::InvalidUri),
 		Ok(u) => u
 	};
 	
@@ -88,7 +88,8 @@ pub fn resolve_uri(suri: &str, nio: &Netspace, config: &NodeConfig, chain: Box<C
 	if uri.gtn() != "" {
 		
 		match uri.query_param("__meta") {
-			Some(v) => {
+			Some(_) => {
+				 
 				// *** Geolocation query goes here here
 				return ResolutionResult::Err(ResolutionFailure::UnsupportedAction)
 			},
@@ -125,7 +126,7 @@ pub fn resolve_uri(suri: &str, nio: &Netspace, config: &NodeConfig, chain: Box<C
 		// It isn't a valid node, so it might be a GSN
 		if node_str == config.geosub().as_str()  {
 			// It is our GSN, so pass back the nodes
-			let mut nodes : Vec<Node> = nio.gsn_nodes_by_type(NodeRole::Hub);
+			let nodes : Vec<Node> = nio.gsn_nodes_by_type(NodeRole::Hub);
 			
 			if nodes.is_empty() { return ResolutionResult::Err(ResolutionFailure::NoHubs) }
 				
@@ -190,10 +191,9 @@ mod tests {
 	//use spring_dvs::protocol::{ProtocolObject,Response,Message,MessageContent,CmdType,ContentResponse,ResponseContent,ContentNodeInfo,NodeInfoFmt};
 	use ::config::{NodeConfig};
 	use ::config::mocks::MockConfig;
-	use ::netspace::{Netspace,NetspaceIo,netspace_add_self,Node,NodeRole};
-	use ::chain::Chain;
+	use ::netspace::{Netspace,NetspaceIo,Node,NodeRole};
 	use ::chain::mocks::MockChain;
-	use ::network::NetworkFailure;
+	
 	
 	macro_rules! try_panic{
 		($e: expr) => (
@@ -219,10 +219,10 @@ mod tests {
 	pub fn add_self(ns: &Netspace, cfg: &MockConfig) {
 		let s : String = format!("spring:{},host:{},address:{},service:dvsp,role:hub,state:enabled",cfg.springname(), cfg.hostname(), cfg.address());
 		let n = Node::from_str(&s).unwrap();
-		ns.gsn_node_register(&n);
-		ns.gsn_node_update_state(&n);
+		try_panic!(ns.gsn_node_register(&n));
+		try_panic!(ns.gsn_node_update_state(&n));
 		
-		ns.gtn_geosub_register_node(&n, &cfg.geosub());
+		try_panic!(ns.gtn_geosub_register_node(&n, &cfg.geosub()));
 	}
 	
 	fn add_node_with_name(name: &str, ns: &Netspace) {
@@ -235,7 +235,7 @@ mod tests {
 	
 	fn change_node_role(name: &str, role: NodeRole, ns: &Netspace) {
 		let n = try_panic!(Node::from_str(&format!("spring:{},role:{}",name,role)));
-		ns.gsn_node_update_role(&n);
+		try_panic!(ns.gsn_node_update_role(&n));
 	}
 	
 	macro_rules! std_init {

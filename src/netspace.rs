@@ -405,14 +405,14 @@ pub fn netspace_routine_is_address_gsn_root(address: &str, gsn: &str, nio: &Nets
 	false
 }
 
-
-pub fn netspace_add_self(ns: &Netspace, cfg: &NodeConfig) {
-	let s : String = format!("spring:{},host:{},address:{},service:dvsp,role:hub,state:enabled",cfg.springname(), cfg.hostname(), cfg.address());
+#[allow(dead_code)]
+pub fn netspace_add_self(ns: &Netspace, cfg: &Box<NodeConfig>) {
+	let s : String = format!("spring:{},host:{},address:{},service:dvsp,role:hub,state:enabled",cfg.as_ref().springname(), cfg.as_ref().hostname(), cfg.as_ref().address());
 	let n = Node::from_str(&s).unwrap();
-	ns.gsn_node_register(&n);
-	ns.gsn_node_update_state(&n);
+	ns.gsn_node_register(&n).unwrap();
+	ns.gsn_node_update_state(&n).unwrap();
 	
-	ns.gtn_geosub_register_node(&n, &cfg.geosub());
+	ns.gtn_geosub_register_node(&n, &cfg.geosub()).unwrap();
 }
 
 #[cfg(test)]
@@ -422,6 +422,7 @@ mod tests {
 	
 	#[allow(unused_imports)]
 	use super::*;
+	
 	
 	
 	#[allow(dead_code)]
@@ -846,7 +847,7 @@ mod tests {
 	fn ts_netspaceio_gtn_geosubs_p() {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		let node = Node::from_str("springa").unwrap();
+		Node::from_str("springa").unwrap();
 		
 		assert_eq!(nsio.gtn_geosubs().len(), 1);
 		assert_eq!(nsio.gtn_geosubs()[0], "esusx");

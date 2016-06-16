@@ -1,5 +1,5 @@
 use std::net::UdpSocket;
-use std::io::{Error, ErrorKind};
+use std::io::{ErrorKind};
 use std::time::Duration;
 
 use spring_dvs::enums::{NodeService};
@@ -24,7 +24,10 @@ impl ChainService {
 				Err(_) => return Err(NetworkFailure::Bind)
 		};
 		
-		socket.set_read_timeout(Some(Duration::new(20,0))); // 20 second timeout
+		match socket.set_read_timeout(Some(Duration::new(20,0))) { // 20 Second Timeout
+			Ok(_) => { },
+			_ => return Err(NetworkFailure::SocketError)
+		}
 		
 		match socket.send_to(bytes.as_ref(), address.as_str()) {
 			Ok(_) =>{ },
@@ -60,7 +63,7 @@ impl Chain for ChainService {
 pub mod mocks {
 	extern crate spring_dvs;
 	use spring_dvs::node::{Node};
-	use spring_dvs::protocol::{ProtocolObject, Message,ParseFailure};
+	use spring_dvs::protocol::{ProtocolObject, Message};
 	
 	use super::*;
 
@@ -77,7 +80,7 @@ pub mod mocks {
 	}
 	
 	impl Chain for MockChain {
-		
+		#[allow(unused_variables)]
 		fn request(&self, bytes: &Vec<u8>, target: &Node) -> Result<Vec<u8>, NetworkFailure> {
 			
 			assert_eq!(target.springname(), self.target);
