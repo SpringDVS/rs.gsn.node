@@ -9,9 +9,10 @@ extern crate spring_dvs;
 //use std::env;
 
 mod config;
-mod node_config;
 mod netspace;
 mod protocol;
+mod network;
+mod chain;
 mod resolution;
 
 /*
