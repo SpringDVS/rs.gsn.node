@@ -27,21 +27,21 @@ pub struct Svr<'s> {
 }
 
 impl<'s> Svr<'s> {
-	fn new(sock: SocketAddr, config: Box<NodeConfig>, nio: &'s Netspace) -> Svr<'s> {
+	pub fn new(sock: SocketAddr, config: Box<NodeConfig>, nio: &'s Netspace) -> Svr<'s> {
 
 		Svr{ sock:sock, config:config, nio:nio }
 		
 	}
 }
 
-fn response_content(code: Response, content: ResponseContent) -> Message {
+pub fn response_content(code: Response, content: ResponseContent) -> Message {
 	Message {
 		cmd: CmdType::Response,
 		content: MessageContent::Response(ContentResponse{ code: code, content: content })
 	}
 }
 
-fn response(code: Response) -> Message {
+pub fn response(code: Response) -> Message {
 	Message {
 		cmd: CmdType::Response,
 		content: MessageContent::Response(ContentResponse{ code: code, content: ResponseContent::Empty })
@@ -83,10 +83,13 @@ impl Protocol {
 	fn register_action(msg: &Message, svr: &Svr) -> Message {
 		let reg = msg_registration!(msg.content);
 		let addr = ipaddr_str(svr.sock.ip());
-		let n = Node::from_registration(reg, &addr);
+		let n : Node = Node::from_registration(reg, &addr);
 		
 		match svr.nio.gsn_node_register(&n) {
-			Ok(_) => response(Response::Ok),
+			Ok(_) => {
+				println!("[Netspace] Registered: {}", n.to_node_double().unwrap());
+				response(Response::Ok)
+			},
 			Err(NetspaceFailure::DuplicateNode) =>  response(Response::NetspaceDuplication),
 			_ => response(Response::NetspaceError)
 		}
@@ -102,7 +105,10 @@ impl Protocol {
 		}
 
 		match svr.nio.gsn_node_unregister(&n) {
-			Ok(_) => response(Response::Ok),
+			Ok(_) => {
+				println!("[Netspace] Unregistered: {}", n.springname());
+				response(Response::Ok)
+			},
 			_ => response(Response::NetspaceDuplication)
 			
 		}
@@ -163,7 +169,10 @@ impl Protocol {
 		
 		n.update_state(state);
 		match svr.nio.gsn_node_update_state(&n) {
-			Ok(Success::Ok) => response(Response::Ok),
+			Ok(_) => {
+				println!("[Netspace] Update: {} state -> {}", n.springname(), state);
+				response(Response::Ok)
+			},
 			_ => response(Response::NetspaceError),
 		}		
 	}

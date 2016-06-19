@@ -1,9 +1,9 @@
 extern crate sqlite;
 use self::sqlite::{State,Statement};
 
-use spring_dvs::model::{Node,Netspace};
-use spring_dvs::formats::{ipv4_to_str_address, geosub_from_node_register_gtn};
-use spring_dvs::enums::{DvspService};
+use spring_dvs::spaces::Netspace;
+use spring_dvs::node::Node;
+use spring_dvs::enums::NodeService;
 use ::netspace::NetspaceIo;
 use ::config::Config;
 
@@ -72,7 +72,7 @@ pub fn reset_live_test_env(nio: &NetspaceIo, config: &Config) {
 
 pub fn update_address_test_env(nio: &NetspaceIo, nodestring: &str , config: &Config) {
 	if config.live_test == false { return }
-	let node : Node = match Node::from_node_string(nodestring) {
+	let node : Node = match Node::from_str(nodestring) {
 		Err(_) => return,
 		Ok(n) => n
 	};
@@ -83,18 +83,18 @@ pub fn update_address_test_env(nio: &NetspaceIo, nodestring: &str , config: &Con
 					SET address = ?
 					WHERE springname = ?").unwrap();
 	
-	statement.bind(1, &sqlite::Value::String( ipv4_to_str_address(&node.address()) ) ).unwrap();
+	statement.bind(1, &sqlite::Value::String( String::from(node.address()) ) ).unwrap();
 	statement.bind(2, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
 	
 	match statement.next() {
 		_ => {},   
 	}
 }
-
+/*
 pub fn add_geosub_root_test_env(nio: &NetspaceIo, nodereggtn: &str, config: &Config) {
 	if config.live_test == false { return }
-	let mut node = Node::from_node_string(nodereggtn).unwrap();
-	node.update_service(DvspService::Dvsp);
+	let mut node = Node::from_str(nodereggtn).unwrap();
+	node.update_service(NodeService::Dvsp);
 	let gsn = match geosub_from_node_register_gtn(nodereggtn) {
 		Ok(g) => g,
 		_ => return,
@@ -102,3 +102,4 @@ pub fn add_geosub_root_test_env(nio: &NetspaceIo, nodereggtn: &str, config: &Con
 	
 	nio.gtn_geosub_register_node(&node, &gsn).unwrap();
 }
+*/

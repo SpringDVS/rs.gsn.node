@@ -1,16 +1,16 @@
 #![allow(dead_code)]
 extern crate epoll;
 
-use std::io::prelude::*;
+use std::str::FromStr;
+//use std::io::prelude::*;
 use std::os::unix::io::{AsRawFd, RawFd};
-use std::net::{UdpSocket,TcpListener,TcpStream, SocketAddr};
+use std::net::{UdpSocket,SocketAddr};
+//use std::net::{TcpListener,TcpStream}
 use std::thread;
 
-use spring_dvs::enums::{DvspMsgType, DvspRcode};
-use spring_dvs::protocol::{Packet, Ipv4, http_from_bin, http_to_bin};
-use spring_dvs::protocol::{FrameResponse, HttpWrapper};
-use spring_dvs::serialise::{NetSerial};
-use spring_dvs::formats::ipv4_to_str_address;
+use spring_dvs::enums::{Response};
+use spring_dvs::protocol::{ProtocolObject,Message};
+use spring_dvs::protocol::{Port};
 
 
 
@@ -19,14 +19,16 @@ use netspace::*;
 use self::epoll::*;
 use self::epoll::util::*;
 use ::config::Config;
-use ::unit_test_env::setup_live_test_env;
+use unit_test_env::*;
+//use ::unit_test_env::setup_live_test_env;
 
 //pub use spring_dvs::enums::{Success, Failure};
 
-use ::protocol::process_packet;
+use protocol::{Protocol,Svr,response};
+use chain::ChainService;
 
 
-pub struct Tcp;
+//pub struct Tcp;
 pub struct Dvsp;
 /*
  * ToDo:
@@ -38,7 +40,8 @@ pub struct Dvsp;
 impl Dvsp {
 	pub fn start(config: &Config) -> Result<Success,Failure> {
 		
-		let socket = match UdpSocket::bind("0.0.0.0:55301") {
+		let sa = SocketAddr::from_str(&format!("0.0.0.0:{}",Port::Dvsp)).unwrap();
+		let socket = match UdpSocket::bind(sa) {
 				Ok(s) => s,
 				Err(_) => return Err(Failure::InvalidArgument)
 		};
@@ -59,13 +62,15 @@ impl Dvsp {
 		
 		let cfg_clone = config.clone();
 		
-		let _ = thread::spawn(move|| {
+		let s = thread::spawn(move|| {
 			
 			Dvsp::epoll_wait(epfd, socket, cfg_clone);	    
 		});
 	
-		
-		
+		match s.join() {
+			Ok(_) => { },
+			_ => println!("[Error] Error on UDP thread join"),
+		}	
 		Ok(Success::Ok)
 	}
 	
@@ -94,7 +99,7 @@ impl Dvsp {
 			
 			}
 		};
-		
+	    
 	    println!("[Service] UDP Service Online");
 	    loop {
 		    match epoll::wait(epfd, &mut events[..], -1) {
@@ -108,11 +113,22 @@ impl Dvsp {
 							Err(_) => return,
 							Ok(s) => s
 						};
-		
-	
-		
-		            	let bytes = process_packet(&bytes[0..sz], &from, config, &nio);
-		            	match socket.send_to(bytes.as_slice(), from) {
+						
+						let svr = Svr::new(from, Box::new(config.clone()), &nio);
+						let outbound : Message = match Message::from_bytes(&bytes[0..sz]) {
+							Ok(m) => Protocol::process(&m, svr, Box::new(ChainService{})),
+							Err(e) => {
+								 
+								let mut v : Vec<u8> = Vec::new();
+								
+								v.extend_from_slice(&bytes[0..sz]);
+								println!("[Error] Parse Error: {:?}\nDump:\n{:?}", e, v);
+								response(Response::MalformedContent)
+							}
+							
+						}; 	
+		            	
+		            	match socket.send_to(outbound.to_bytes().as_slice(), from) {
 		            		Err(_) => return,
 							_ => { }
 		            	};
@@ -127,7 +143,7 @@ impl Dvsp {
 
 }
 
-
+/*
 impl Tcp {
 
 	pub fn start(cfg: &Config) -> Result<Success,Failure> {
@@ -286,7 +302,7 @@ pub fn chain_request(bytes: Vec<u8>, target: &Node) -> Result<Vec<u8>, Failure> 
 	Ok(Vec::from(&buf[0..sz]))
 	
 }
-
+*/
 
 mod tests {
 	extern crate spring_dvs;

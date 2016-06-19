@@ -6,7 +6,7 @@
 #[macro_use]
 extern crate spring_dvs;
 
-//use std::env;
+use std::env;
 
 mod config;
 mod netspace;
@@ -14,14 +14,16 @@ mod protocol;
 mod network;
 mod chain;
 mod resolution;
-
-/*
 mod service;
+mod unit_test_env;
 
+use config::{NodeConfig};
+/*
 
 
 mod requests;
-mod unit_test_env;
+
+*/
 
 fn main() {
 	
@@ -35,20 +37,18 @@ fn main() {
 		}
 	}
 
-    println!("Spring GSN Root Node\n[Node] {}.{}.uk", node_config::node_springname(), node_config::node_geosub());
-    println!("[Node] {}/{}", node_config::node_hostname(), node_config::node_resource());
+    println!("Spring GSN Root Node\n[Node] {}.{}.uk", config.springname(), config.geosub());
+    println!("[Node] {}/spring/", config.hostname());
     
     match service::Dvsp::start(&config) {
     	Ok(_) =>{  },
     	Err(_) => println!("[Error]"),
     }
     
+    /*
     match service::Tcp::start(&config) {
     	Ok(_) => {},
     	Err(_) => {println!("[Error]")},
     }
+    */
 }
-
-*/
-
-fn main() { }
