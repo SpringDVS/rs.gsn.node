@@ -362,6 +362,19 @@ impl Netspace for NetspaceIo {
 			Err(_) => Err(NetspaceFailure::NodeNotFound)   
 		}				
 	}
+	
+	fn gsn_check_token(&self, token: &str) -> bool {
+		let mut statement = self.db().prepare("
+	    	SELECT * FROM geosub_tokens WHERE token = ?
+			").unwrap();
+	
+		statement.bind(1, &sqlite::Value::String( String::from( String::from(token) ) ) ).unwrap();
+			
+		match statement.next() {
+			Ok(State::Row) => true,
+			_ => false
+	}	
+}
 }
 
 pub fn netspace_routine_is_registered(node: &Node, nio: &NetspaceIo) -> bool {
@@ -377,19 +390,6 @@ pub fn netspace_routine_is_registered(node: &Node, nio: &NetspaceIo) -> bool {
 		}
 	}
 
-}
-
-pub fn netspace_routine_check_token(nio: &NetspaceIo, token: String) -> bool {
-	let mut statement = nio.db().prepare("
-    	SELECT * FROM geosub_tokens WHERE token = ?
-		").unwrap();
-
-	statement.bind(1, &sqlite::Value::String( token ) ).unwrap();
-		
-	match statement.next() {
-		Ok(State::Row) => true,
-		_ => false
-	}	
 }
 
 // Fix:
@@ -815,14 +815,14 @@ mod tests {
 	fn ts_netspace_routine_check_token_p() {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		assert!(netspace_routine_check_token(&nsio, "3858f62230ac3c915f300c664312c63f".to_string()));		
+		assert!(nsio.gsn_check_token("3858f62230ac3c915f300c664312c63f"));		
 	}
 
 	#[test]
 	fn ts_netspace_routine_check_token_f() {
 		let nsio = NetspaceIo::new(":memory:");
 		setup_netspace(nsio.db());
-		assert!(netspace_routine_check_token(&nsio, "3858f62230ac3c915f300c66432c63f1".to_string()) == false);		
+		assert!(nsio.gsn_check_token("3858f62230ac3c915f300c66432c63f1") == false);		
 	}
 
 	#[test]

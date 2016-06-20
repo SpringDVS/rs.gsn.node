@@ -11,7 +11,7 @@ pub use spring_dvs::uri::Uri;
 use chain::Chain;
 use resolution::{resolve_uri,ResolutionResult,ResolutionFailure};
 
-pub use netspace::NetspaceIo;
+pub use netspace::{NetspaceIo};
 pub use config::{NodeConfig,Config};
 
 
@@ -85,6 +85,9 @@ impl Protocol {
 		let addr = ipaddr_str(svr.sock.ip());
 		let n : Node = Node::from_registration(reg, &addr);
 		
+		if svr.nio.gsn_check_token(&reg.token) == false {
+			return response(Response::NetspaceError)
+		}
 		match svr.nio.gsn_node_register(&n) {
 			Ok(_) => {
 				println!("[Netspace] Registered: {}", n.to_node_double().unwrap());
@@ -347,7 +350,9 @@ mod tests {
 		CREATE TABLE `geosub_tokens` (
 			`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
 			`token`	TEXT
-		);").unwrap();
+		);
+		INSERT INTO `geosub_tokens` (token) VALUES ('3858f62230ac3c915f300c664312c63f');
+		").unwrap();
 		
 		ns
 	}
@@ -402,7 +407,7 @@ mod tests {
 		let ns = new_netspace();
 		let svr = new_svr(&ns);
 		
-		process_assert_ok!("register spring,host;org;http", svr);
+		process_assert_ok!("register spring,host;org;http;3858f62230ac3c915f300c664312c63f", svr);
 		
 		
 		let n : Node = get_node("spring", &ns);
@@ -419,7 +424,7 @@ mod tests {
 		//Add duplicate
 		add_node_with_name("spring", &ns);
 		
-		process_assert_response!("register spring,host;org;http", svr, Response::NetspaceDuplication);
+		process_assert_response!("register spring,host;org;http;3858f62230ac3c915f300c664312c63f", svr, Response::NetspaceDuplication);
 
 	}
 
