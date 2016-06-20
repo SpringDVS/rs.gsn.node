@@ -427,6 +427,13 @@ mod tests {
 		process_assert_response!("register spring,host;org;http;3858f62230ac3c915f300c664312c63f", svr, Response::NetspaceDuplication);
 
 	}
+	
+	#[test]
+	fn ts_protocol_register_fail_bad_token() {
+		let ns = new_netspace();
+		let svr = new_svr(&ns);
+		process_assert_response!("register spring,host;org;http;3858f62230ac3c915f300c664312", svr, Response::NetspaceError);
+	}
 
 	#[test]
 	fn ts_protocol_unregister_pass() {
