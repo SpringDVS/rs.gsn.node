@@ -13,6 +13,7 @@ use resolution::{resolve_uri,ResolutionResult,ResolutionFailure};
 
 pub use netspace::{NetspaceIo};
 pub use config::{NodeConfig,Config};
+use requests::multicast_request;
 
 
 
@@ -182,7 +183,10 @@ impl Protocol {
 	
 	#[allow(unused_variables)]
 	fn service_action(msg: &Message, svr: &Svr) -> Message {
-		response(Response::UnsupportedService)
+		let nodes = svr.nio.gsn_nodes();
+		let curi = msg_service!(msg.content);
+		let mut uri = curi.uri.clone();
+		multicast_request(&nodes, &mut uri)
 	}
 	
 	fn resolve_action(msg: &Message, svr: &Svr, chain: Box<Chain>) -> Message {

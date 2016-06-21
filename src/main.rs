@@ -15,15 +15,10 @@ mod network;
 mod chain;
 mod resolution;
 mod service;
+mod requests;
 mod unit_test_env;
 
 use config::{NodeConfig};
-/*
-
-
-mod requests;
-
-*/
 
 fn main() {
 	

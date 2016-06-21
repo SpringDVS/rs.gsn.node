@@ -2,20 +2,18 @@ use std::thread;
 use std::sync::mpsc::channel;
 
 use spring_dvs::enums::*;
-use spring_dvs::protocol::{Packet, PacketHeader, FrameResolution, FrameResponse};
-use spring_dvs::model::{Node,Url};
-use spring_dvs::serialise::NetSerial;
+use spring_dvs::protocol::{CmdType,ProtocolObject,Message,MessageContent,ContentResponse,ResponseContent,ContentServiceText};
+use spring_dvs::node::Node;
+use spring_dvs::uri::Uri;
 
-use protocol::forge_response_packet;
 use service::Tcp;
 // ToDo: Allow larger packet contents on TCP streams
 
-#[allow(unused_variables)]
-pub fn multicast_request(packet: &Packet, nodes: &Vec<Node>, url: &mut Url) -> Packet {
+pub fn multicast_request(nodes: &Vec<Node>, uri: &mut Uri) -> Message {
 
-	let mut v : Vec<Packet> = Vec::new();
-	let dbg_url = url.to_string();
-	println!("[Service] Processing {}", dbg_url);
+	let mut v : Vec<Message> = Vec::new();
+	let dbg_uri = uri.to_string();
+	println!("[Service] Processing {}", dbg_uri);
 	let (tx,rx) = channel();
 	
 	for i in 0..nodes.len() {
@@ -23,16 +21,19 @@ pub fn multicast_request(packet: &Packet, nodes: &Vec<Node>, url: &mut Url) -> P
 		let tx = tx.clone();
 		let node : Node = nodes[i].clone();
 		
-		url.route_mut().clear();
-		url.route_mut().push(node.springname().to_string());
-		let urlstr = url.to_string();
-		let mut inp = Packet::new(DvspMsgType::GsnRequest);
+		uri.route_mut().clear();
+		uri.route_mut().push(node.springname().to_string());
+		let uristr = uri.to_string();
 
-		inp.write_content( FrameResolution::new(&urlstr).serialise().as_ref() ).unwrap();
-		 
+		let mut outbound = match Message::from_bytes(format!("service {}", uristr).as_bytes()) {
+			Ok(m) => m,
+			Err(_) => continue
+		};
+
 		thread::spawn(move|| {
-			let outp = Tcp::make_request(&inp, &node.address(), node.hostname(), node.resource(), node.service());
-			tx.send((i,outp)).unwrap();		
+				
+			let inbound = Tcp::make_request(&outbound, &node.address(), node.hostname(), node.service());
+			tx.send((i,inbound)).unwrap();		
 		});
 	}
 	
@@ -45,33 +46,40 @@ pub fn multicast_request(packet: &Packet, nodes: &Vec<Node>, url: &mut Url) -> P
 	aggregate_responses(&v)
 }
 
-fn aggregate_responses(responses: &Vec<Packet>) -> Packet {
+fn aggregate_responses(responses: &Vec<Message>) -> Message {
 	
-	let mut out = Packet::new(DvspMsgType::GsnResponseHigh);
 	
-
 	let mut v : Vec<u8> = Vec::new();
 
 	for i in 0..responses.len() {
 
-		match responses[i].header().msg_type {
-			DvspMsgType::GsnResponseHigh =>{ 
-				
-				v.extend(responses[i].content_raw().as_slice());
-				v.push('|' as u8);
+		match responses[i].cmd {
+
+			CmdType::Response => {
+				let rc = msg_response!(responses[i].content);
+				match rc.content { 
+					ResponseContent::ServiceText(ref t) => {
+						v.extend(t.content.as_bytes());
+						v.push('|' as u8);
+					},
+					_ => continue,
+				}
+
 			},
-			DvspMsgType::GsnResponse => { },
-			_ => {  }
+
+			_ => { }
+
 		}
 	}
 	
+	let msg_str : String = match String::from_utf8(v) {
+		Ok(s) => format!("200 service/text {}",s),
+		Err(_) => String::from("104") 
+	};
 	
-
-	out.mut_header().msg_size = v.len() as u32;
-	out.tcp_flag(true);
-	match out.write_content(&v.as_slice()) {
-		Ok(_) => out,
-		Err(_) =>  forge_response_packet(DvspRcode::MalformedContent).unwrap(),
+	match Message::from_bytes( msg_str.as_bytes() ) {
+		Ok(m) => m, 
+		Err(_) => Message::from_bytes(b"104").unwrap()
 	}
 	
 }

@@ -232,25 +232,25 @@ impl Tcp {
 		Protocol::process(&Message::from_bytes(bytes).unwrap(), svr, Box::new(ChainService{})).to_bytes()
 	}
 
-	/*
-	pub fn make_request(packet: &Packet, address: &Ipv4, host: &str, resource: &str, service: DvspService) -> Result<Packet,Failure> {
-		
+
+	pub fn make_request(msg: &Message, address: &str, host: &str, service: NodeService) -> Result<Message,Failure> {
+
 		let (addr, serial) = match service {
-			DvspService::Http => (
-				 	format!("{}:80", ipv4_to_str_address(address)),
-				 	HttpWrapper::serialise_request(packet, host, resource)
+			NodeService::Http => (
+			 	format!("{}:{}", address, Port::Http),
+			 	HttpWrapper::serialise_request(msg, host)
 			),
 			_ => (
-				format!("{}:55300", ipv4_to_str_address(address)),
-				packet.serialise()
+				format!("{}:{}", address, Port::Stream),
+				msg.to_bytes()
 			)
 		};
-		
+
 		let mut stream = match TcpStream::connect(addr.as_str()) {
 			Ok(s) => s,
 			Err(_) => return Err(Failure::InvalidArgument)
 		};
-		
+
 		stream.write(serial.as_slice()).unwrap();
 		let mut buf = [0;4096];
 
@@ -258,20 +258,16 @@ impl Tcp {
 					Ok(s) => s,
 					Err(_) => 0
 		};
-		
+
 		if size == 0 { return Err(Failure::InvalidArgument) }
 		
-		if service == DvspService::Http {
-			
-			match HttpWrapper::deserialise_response(Vec::from(&buf[0..size])) {
-				Ok(bytes) => Packet::deserialise(&bytes),
-				Err(e) => { Err(Failure::InvalidConversion)  }
-			}
+		if service == NodeService::Http {
+			HttpWrapper::deserialise_response(Vec::from(&buf[0..size]))	
 		} else {
-			Packet::deserialise(&buf[0..size])
+			Ok(Message::from_bytes(&buf[0..size]).unwrap())
 		}
 	} 
-	*/
+
 }
 
 mod tests {
