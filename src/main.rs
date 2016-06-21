@@ -45,10 +45,8 @@ fn main() {
     	Err(_) => println!("[Error]"),
     }
     
-    /*
     match service::Tcp::start(&config) {
     	Ok(_) => {},
     	Err(_) => {println!("[Error]")},
     }
-    */
 }

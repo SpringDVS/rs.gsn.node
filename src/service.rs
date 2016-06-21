@@ -2,15 +2,17 @@
 extern crate epoll;
 
 use std::str::FromStr;
-//use std::io::prelude::*;
+use std::io::prelude::*;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::net::{UdpSocket,SocketAddr};
-//use std::net::{TcpListener,TcpStream}
+use std::net::{TcpListener,TcpStream};
 use std::thread;
 
 use spring_dvs::enums::{Response};
 use spring_dvs::protocol::{ProtocolObject,Message};
 use spring_dvs::protocol::{Port};
+
+use spring_dvs::http::HttpWrapper;
 
 
 
@@ -28,7 +30,7 @@ use protocol::{Protocol,Svr,response};
 use chain::ChainService;
 
 
-//pub struct Tcp;
+pub struct Tcp;
 pub struct Dvsp;
 /*
  * ToDo:
@@ -67,11 +69,13 @@ impl Dvsp {
 			Dvsp::epoll_wait(epfd, socket, cfg_clone);	    
 		});
 	
-		match s.join() {
+/*		match s.join() {
 			Ok(_) => { },
 			_ => println!("[Error] Error on UDP thread join"),
 		}	
+*/
 		Ok(Success::Ok)
+	
 	}
 	
 	
@@ -143,7 +147,7 @@ impl Dvsp {
 
 }
 
-/*
+
 impl Tcp {
 
 	pub fn start(cfg: &Config) -> Result<Success,Failure> {
@@ -160,9 +164,7 @@ impl Tcp {
 					NetspaceIo::new("/var/lib/springdvs/gsn.db") 
 				},
 				true => {
-					
-					let nio = NetspaceIo::new("live-testing.db");
-					nio
+					NetspaceIo::new("live-testing.db")
 				}
 			};			
 
@@ -215,25 +217,22 @@ impl Tcp {
 		if &check == &"POST".as_bytes() {
 			// Here sort it as an HTTP service layer
 			match HttpWrapper::deserialise_request(Vec::from(bytes), address) {
-				Ok(bytes_in) => {
-					let bytes = process_packet(&bytes_in, &address, config.clone(), &nio);
-					return HttpWrapper::serialise_response_bytes(&bytes)
+				Ok(msg) => {
+					
+					let svr = Svr::new(address.clone(), Box::new(config.clone()), nio);
+					
+					let m = Protocol::process(&msg, svr, Box::new(ChainService{}));
+					return HttpWrapper::serialise_response_bytes(&m.to_bytes())
 				},
-				Err(_) => return HttpWrapper::serialise_response(
-										&Packet::from_serialisable(
-											DvspMsgType::GsnResponse, 
-											&FrameResponse::new(DvspRcode::MalformedContent)
-										).unwrap())
+				Err(_) => return HttpWrapper::serialise_response(&Message::from_bytes(b"104").unwrap())
 			};
 		}
-		
+		let svr = Svr::new(address.clone(), Box::new(config.clone()), nio);
 		// Here we handle a straight DVSP TCP stream
-		process_packet(&bytes, &address, config.clone(), &nio)
-		
-		
+		Protocol::process(&Message::from_bytes(bytes).unwrap(), svr, Box::new(ChainService{})).to_bytes()
 	}
 
-	
+	/*
 	pub fn make_request(packet: &Packet, address: &Ipv4, host: &str, resource: &str, service: DvspService) -> Result<Packet,Failure> {
 		
 		let (addr, serial) = match service {
@@ -271,38 +270,9 @@ impl Tcp {
 		} else {
 			Packet::deserialise(&buf[0..size])
 		}
-	}  
+	} 
+	*/
 }
-
-// ToDo clean this lot up -- better failure states
-pub fn chain_request(bytes: Vec<u8>, target: &Node) -> Result<Vec<u8>, Failure> {
-	
-	// ToDo: Handle HTTP service layers
-	let address : String = match target.service() {
-		DvspService::Dvsp => format!("{}:55301", ipv4_to_str_address(&target.address())),
-		_ => return Err(Failure::InvalidArgument)
-	};
-	
-	let socket = match UdpSocket::bind("0.0.0.0:0") {
-			Ok(s) => s,
-			Err(_) => return Err(Failure::InvalidArgument)
-	};
-	
-	match socket.send_to(bytes.as_ref(), address.as_str()) {
-		Ok(_) =>{ },
-		_ => return Err(Failure::InvalidArgument),
-	}
-	
-	let mut buf = [0;768];
-	let (sz, _) = match socket.recv_from(&mut buf) {
-		Ok(t) => t,
-		_ => { return Err(Failure::InvalidArgument) }
-	};
-	
-	Ok(Vec::from(&buf[0..sz]))
-	
-}
-*/
 
 mod tests {
 	extern crate spring_dvs;
