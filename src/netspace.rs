@@ -5,7 +5,7 @@ extern crate sqlite;
 pub use spring_dvs::enums::{Failure,Success};
 pub use spring_dvs::node::{Node,NodeRole,NodeService,NodeState,ParseFailure};
 pub use spring_dvs::spaces::{Netspace,NetspaceFailure};
-pub use config::{NodeConfig};
+pub use config::{NodeConfig, Config};
 
 
 
@@ -405,9 +405,9 @@ pub fn netspace_routine_is_address_gsn_root(address: &str, gsn: &str, nio: &Nets
 	false
 }
 
-#[allow(dead_code)]
-pub fn netspace_add_self(ns: &Netspace, cfg: &Box<NodeConfig>) {
-	let s : String = format!("spring:{},host:{},address:{},service:dvsp,role:hub,state:enabled",cfg.as_ref().springname(), cfg.as_ref().hostname(), cfg.as_ref().address());
+
+pub fn netspace_add_self(ns: &Netspace, cfg: &Config) {
+	let s : String = format!("spring:{},host:{},address:{},service:dvsp,role:hub,state:enabled",cfg.springname(), cfg.hostname(), cfg.address());
 	let n = Node::from_str(&s).unwrap();
 	ns.gsn_node_register(&n).unwrap();
 	ns.gsn_node_update_state(&n).unwrap();

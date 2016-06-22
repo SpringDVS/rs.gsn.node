@@ -18,9 +18,10 @@ use spring_dvs::http::HttpWrapper;
 
 use netspace::*;
 
+
 use self::epoll::*;
 use self::epoll::util::*;
-use ::config::Config;
+
 use unit_test_env::*;
 //use ::unit_test_env::setup_live_test_env;
 
@@ -32,12 +33,6 @@ use chain::ChainService;
 
 pub struct Tcp;
 pub struct Dvsp;
-/*
- * ToDo:
- * There is not timeout handling going on
- * The server could potentially hang until
- * fossil fuel runs out.
- */
 
 impl Dvsp {
 	pub fn start(config: &Config) -> Result<Success,Failure> {
@@ -53,7 +48,6 @@ impl Dvsp {
 	
 		let mut event = EpollEvent {
 			data: sfd as u64,
-			//events: (event_type::EPOLLIN | event_type::EPOLLET | event_type::EPOLLRDHUP)
 			events: (event_type::EPOLLIN | event_type::EPOLLRDHUP)
 		};
 		
@@ -104,6 +98,8 @@ impl Dvsp {
 			}
 		};
 	    
+	    netspace_add_self(&nio, &config);
+
 	    println!("[Service] UDP Service Online");
 	    loop {
 		    match epoll::wait(epfd, &mut events[..], -1) {
@@ -166,9 +162,8 @@ impl Tcp {
 				true => {
 					NetspaceIo::new("live-testing.db")
 				}
-			};			
-
-
+			};
+		    
 			println!("[Service] TCP Service Online");
 			for stream in listener.incoming() {
 				
