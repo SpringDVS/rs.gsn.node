@@ -183,8 +183,20 @@ impl Protocol {
 	
 	#[allow(unused_variables)]
 	fn service_action(msg: &Message, svr: &Svr) -> Message {
-		let nodes = svr.nio.gsn_nodes();
+		
 		let curi = msg_service!(msg.content);
+		
+		if curi.uri.route().starts_with(&[svr.config.springname()]) {
+			return response(Response::UnsupportedService)
+		}
+		
+		if !curi.uri.route().starts_with(&[svr.config.geosub()]) {
+			return response(Response::NetworkError)
+		}
+		
+		let mut nodes = svr.nio.gsn_nodes_by_type(NodeRole::Org);
+		nodes.retain(|ref n| n.state() == NodeState::Enabled);
+		
 		let mut uri = curi.uri.clone();
 		multicast_request(&nodes, &mut uri)
 	}

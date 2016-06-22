@@ -16,11 +16,13 @@ pub fn multicast_request(nodes: &Vec<Node>, uri: &mut Uri) -> Message {
 	println!("[Service] Processing {}", dbg_uri);
 	let (tx,rx) = channel();
 	
+	
+	
 	for i in 0..nodes.len() {
-
-		let tx = tx.clone();
+		
 		let node : Node = nodes[i].clone();
 		
+		let tx = tx.clone();
 		uri.route_mut().clear();
 		uri.route_mut().push(node.springname().to_string());
 		let uristr = uri.to_string();
