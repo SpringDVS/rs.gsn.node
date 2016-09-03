@@ -36,16 +36,18 @@ impl<'s> Svr<'s> {
 }
 
 pub fn response_content(code: Response, content: ResponseContent) -> Message {
+	
+	let s = String::from(format!("{}", content));
 	Message {
 		cmd: CmdType::Response,
-		content: MessageContent::Response(ContentResponse{ code: code, content: content })
+		content: MessageContent::Response(ContentResponse{ code: code, len: s.len() as u32, content: content })
 	}
 }
 
 pub fn response(code: Response) -> Message {
 	Message {
 		cmd: CmdType::Response,
-		content: MessageContent::Response(ContentResponse{ code: code, content: ResponseContent::Empty })
+		content: MessageContent::Response(ContentResponse{ code: code, len: 0, content: ResponseContent::Empty })
 	}
 }
 
@@ -181,7 +183,6 @@ impl Protocol {
 		}		
 	}
 	
-	#[allow(unused_variables)]
 	fn service_action(msg: &Message, svr: &Svr) -> Message {
 		
 		let curi = msg_service!(msg.content);

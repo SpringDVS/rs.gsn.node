@@ -7,7 +7,6 @@ use spring_dvs::node::Node;
 use spring_dvs::uri::Uri;
 
 use service::Tcp;
-// ToDo: Allow larger packet contents on TCP streams
 
 pub fn multicast_request(nodes: &Vec<Node>, uri: &mut Uri) -> Message {
 
@@ -75,7 +74,7 @@ fn aggregate_responses(responses: &Vec<Message>) -> Message {
 	}
 	
 	let msg_str : String = match String::from_utf8(v) {
-		Ok(s) => format!("200 service/text {}",s),
+		Ok(s) => format!("200 {} service/text {}",s.len(),s),
 		Err(_) => String::from("104") 
 	};
 	

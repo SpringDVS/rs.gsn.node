@@ -1,8 +1,11 @@
 #![allow(dead_code)]
 extern crate epoll;
 
+use std::str;
 use std::str::FromStr;
+
 use std::io::prelude::*;
+use std::io::stdout;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::net::{UdpSocket,SocketAddr};
 use std::net::{TcpListener,TcpStream};
@@ -30,6 +33,39 @@ use unit_test_env::*;
 use protocol::{Protocol,Svr,response};
 use chain::ChainService;
 
+
+
+fn content_len(bytes: &[u8]) -> Option<(usize,usize)> {
+
+	if bytes.len() < 4 || &bytes[0..3] != b"200" {
+		return None
+	}
+
+	
+	let bytestr = match str::from_utf8(&bytes[4..]) {
+		Ok(s) => s,
+		Err(_) => return None
+	};
+	
+	
+	
+	let s = match String::from_str(bytestr) {
+		Ok(s) => s,
+		Err(_) => return None
+	};
+
+	let index = s.find(" ").unwrap();
+	let (sl,_) = s.split_at(index);
+	
+	Some(match sl.parse() {
+			Ok(n) => (n,(4+index+1)),
+			Err(_) => return None
+	})
+}
+
+/*
+
+*/
 
 pub struct Tcp;
 pub struct Dvsp;
@@ -108,34 +144,34 @@ impl Dvsp {
 		            
 		            
 		            for _ in 0..num_events {
-		
+
 		       			let (sz, from) = match socket.recv_from(&mut bytes) {
 							Err(_) => return,
 							Ok(s) => s
 						};
-						
+
 						let svr = Svr::new(from, Box::new(config.clone()), &nio);
 						let outbound : Message = match Message::from_bytes(&bytes[0..sz]) {
 							Ok(m) => Protocol::process(&m, svr, Box::new(ChainService{})),
 							Err(e) => {
-								 
+
 								let mut v : Vec<u8> = Vec::new();
-								
+
 								v.extend_from_slice(&bytes[0..sz]);
 								println!("[Error] Parse Error: {:?}\nDump:\n{:?}", e, v);
 								response(Response::MalformedContent)
 							}
-							
+
 						}; 	
-		            	
+
 		            	match socket.send_to(outbound.to_bytes().as_slice(), from) {
 		            		Err(_) => return,
 							_ => { }
 		            	};
-		
+
 		            }
 		        }
-		
+
 		        Err(e) => println!("[Error] Error on epoll::wait(): {}", e)
 			}
 	    }
@@ -177,15 +213,12 @@ impl Tcp {
 							Err(_) => continue
 						};
 						
-						let size = match stream.read(&mut buf) {
+						let mut size = match stream.read(&mut buf) {
 							Ok(s) => s,
 							Err(_) => 0
 						};
-						
-						
+
 						if size > 4 {
-							
-							
 							let out : Vec<u8> = Tcp::handle_request(&buf[0..size], &mut address, &config, &nio);
 	
 							stream.write(out.as_slice()).unwrap();
@@ -247,8 +280,8 @@ impl Tcp {
 		};
 
 		stream.write(serial.as_slice()).unwrap();
-		let mut buf = [0;4096];
 
+		let mut buf = [0;4096];
 		let size = match stream.read(&mut buf) {
 					Ok(s) => s,
 					Err(_) => 0
@@ -257,7 +290,28 @@ impl Tcp {
 		if size == 0 { return Err(Failure::InvalidArgument) }
 		
 		if service == NodeService::Http {
-			HttpWrapper::deserialise_response(Vec::from(&buf[0..size]))	
+			let (mut msgbuf, hdrend) = try!(HttpWrapper::deserialise_response(Vec::from(&buf[0..size])));
+
+			match content_len(msgbuf.as_slice()) {
+				Some((conlen,split)) => {
+					let metalen = hdrend + split; 
+					if (metalen + conlen) > 4096 {
+						let diff = conlen - (4096-metalen);
+						let mut vbuf = Vec::new();
+						vbuf.resize(diff, 0);
+						let size = match stream.read(&mut vbuf.as_mut_slice()) {
+							Ok(s) => s,
+							Err(d) =>  0
+						};
+						msgbuf.append(&mut vbuf);	
+					}
+				}
+				_ => { }
+			}
+			
+			let msg = msgbuf.as_slice();
+			
+			Ok(Message::from_bytes(msg).unwrap())
 		} else {
 			Ok(Message::from_bytes(&buf[0..size]).unwrap())
 		}
