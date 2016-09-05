@@ -32,7 +32,7 @@ fn main() {
 		}
 	}
 
-    println!("Spring GSN Root Node\n[Node] {}.{}.uk", config.springname(), config.geosub());
+    println!("SpringNet Primary Node v1.0\n[Node] {}.{}.uk", config.springname(), config.geosub());
     println!("[Node] {}/spring/", config.hostname());
     
     match service::Dvsp::start(&config) {
