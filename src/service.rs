@@ -26,9 +26,15 @@ use self::epoll::*;
 use self::epoll::util::*;
 
 use unit_test_env::*;
-//use ::unit_test_env::setup_live_test_env;
 
-//pub use spring_dvs::enums::{Success, Failure};
+
+/* ToDo:
+ * The UDP is running on a single thread, thus making the
+ * use of epoll redundent. Spawn threads or create a thread
+ * pool for handling the UDP connections
+ */
+
+
 
 use protocol::{Protocol,Svr,response};
 use chain::ChainService;
@@ -113,7 +119,7 @@ impl Dvsp {
 	
 	fn epoll_wait(epfd: RawFd, socket: UdpSocket, config: Config) {
 	
-		let mut bytes = [0;768];
+		let mut bytes = [0;4096];
 	
 		let mut events = Vec::<EpollEvent>::with_capacity(100);
 	  
@@ -309,9 +315,19 @@ impl Tcp {
 				_ => { }
 			}
 			
-			let msg = msgbuf.as_slice();
+			let mstr = msgbuf.as_slice();
+
+
+			match Message::from_bytes(mstr) {
+				Ok(m) => Ok(m),
+				Err(e) => {
+					 println!("[Error] {:?}\nDumping:\n{}", e, str::from_utf8(mstr).unwrap());
+					 Err(Failure::InvalidBytes)
+				} 
+			}
+
 			
-			Ok(Message::from_bytes(msg).unwrap())
+			
 		} else {
 			Ok(Message::from_bytes(&buf[0..size]).unwrap())
 		}
