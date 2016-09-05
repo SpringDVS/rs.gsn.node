@@ -346,23 +346,25 @@ mod tests {
 		let ns = NetspaceIo::new(":memory:");
 		ns.db().execute("
 		CREATE TABLE `geosub_netspace` (
-			`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
+			`id`			INTEGER PRIMARY KEY AUTOINCREMENT,
 			`springname`	TEXT UNIQUE,
-			`hostname`	TEXT,
-			`address`	TEXT,
-			`service`	INTEGER,
-			`status`	INTEGER,
-			`types`	INTEGER
+			`hostname`		TEXT,
+			`address`		TEXT,
+			`service`		INTEGER,
+			`status`		INTEGER,
+			`types`			INTEGER,
+			`key`			TEXT
 		);
 		
 		CREATE TABLE `geotop_netspace` (
-			`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
+			`id`			INTEGER PRIMARY KEY AUTOINCREMENT,
 			`springname`	TEXT,
-			`hostname`	TEXT,
-			`address`	TEXT,
-			`service`	INTEGER,
-			`priority`	INTEGER,
-			`geosub`	TEXT
+			`hostname`		TEXT,
+			`address`		TEXT,
+			`service`		INTEGER,
+			`priority`		INTEGER,
+			`geosub`		TEXT,
+			`key`			TEXT
 		);
 		CREATE TABLE `geosub_tokens` (
 			`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -424,7 +426,7 @@ mod tests {
 		let ns = new_netspace();
 		let svr = new_svr(&ns);
 		
-		process_assert_ok!("register spring,host;org;http;3858f62230ac3c915f300c664312c63f", svr);
+		process_assert_ok!("register spring,host;org;http;3858f62230ac3c915f300c664312c63f\nPUBLIC KEY", svr);
 		
 		
 		let n : Node = get_node("spring", &ns);
@@ -441,7 +443,7 @@ mod tests {
 		//Add duplicate
 		add_node_with_name("spring", &ns);
 		
-		process_assert_response!("register spring,host;org;http;3858f62230ac3c915f300c664312c63f", svr, Response::NetspaceDuplication);
+		process_assert_response!("register spring,host;org;http;3858f62230ac3c915f300c664312c63f\nPUBLIC KEY", svr, Response::NetspaceDuplication);
 
 	}
 	
@@ -449,7 +451,7 @@ mod tests {
 	fn ts_protocol_register_fail_bad_token() {
 		let ns = new_netspace();
 		let svr = new_svr(&ns);
-		process_assert_response!("register spring,host;org;http;3858f62230ac3c915f300c664312", svr, Response::NetspaceError);
+		process_assert_response!("register spring,host;org;http;3858f62230ac3c915f300c664312\nPUBLIC KEY", svr, Response::NetspaceError);
 	}
 
 	#[test]

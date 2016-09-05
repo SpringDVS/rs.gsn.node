@@ -43,8 +43,9 @@ impl NetspaceIo {
 		let service = NodeService::from_i64(statement.read::<i64>(4).unwrap());
 		let state = NodeState::from_i64(statement.read::<i64>(5).unwrap());
 		let role =  NodeRole::from_i64(statement.read::<i64>(6).unwrap());
+		let key = statement.read::<String>(7).unwrap();
 		
-		Ok(Node::new(&spring, &host, &addr, service, state, role))
+		Ok(Node::new(&spring, &host, &addr, service, state, role, &key))
 	}
 	
 	fn vector_from_statement(&self, statement: &mut Statement) -> Vec<Node> {
@@ -89,6 +90,7 @@ impl NetspaceIo {
 			println!("service = {}", statement.read::<i64>(4).unwrap());
 			println!("status = {}", statement.read::<i64>(5).unwrap());
 			println!("types = {}", statement.read::<i64>(6).unwrap());
+			println!("key = {}", statement.read::<i64>(7).unwrap());
 			    			
 		}
 		
@@ -196,8 +198,8 @@ impl Netspace for NetspaceIo {
 		let mut statement = self.db.prepare(
 						"INSERT INTO 
 						`geosub_netspace` 
-						(springname,hostname,address,service,status,types) 
-						VALUES (?,?,?,?,?,?)").unwrap();
+						(springname,hostname,address,service,status,types,key) 
+						VALUES (?,?,?,?,?,?,?)").unwrap();
 		statement.bind(1, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
 		statement.bind(2, &sqlite::Value::String( String::from(node.hostname()) ) ).unwrap();
 		statement.bind(3, &sqlite::Value::String( String::from(node.address()) )).unwrap();
@@ -206,6 +208,7 @@ impl Netspace for NetspaceIo {
 		// Regardless of what is set -- the node should be disabled when it is registered
 		statement.bind(5, &sqlite::Value::Integer( NodeState::Disabled as i64 ) ).unwrap();
 		statement.bind(6, &sqlite::Value::Integer( node.role() as i64 ) ).unwrap();
+		statement.bind(7, &sqlite::Value::String( String::from(node.key() ) ) ).unwrap();
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
 			Err(_) => Err(NetspaceFailure::NodeNotFound)   
@@ -328,14 +331,15 @@ impl Netspace for NetspaceIo {
 		let mut statement = self.db.prepare(
 						"INSERT INTO 
 						`geotop_netspace` 
-						(springname,hostname,address,service,priority, geosub) 
-						VALUES (?,?,?,?,?,?)").unwrap();
+						(springname,hostname,address,service,priority, geosub,key) 
+						VALUES (?,?,?,?,?,?,?)").unwrap();
 		statement.bind(1, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
 		statement.bind(2, &sqlite::Value::String( String::from(node.hostname()) ) ).unwrap();
 		statement.bind(3, &sqlite::Value::String( String::from(node.address()) ) ).unwrap();
 		statement.bind(4, &sqlite::Value::Integer( node.service() as i64 ) ).unwrap();
 		statement.bind(5, &sqlite::Value::Integer( 1 as i64)).unwrap();
 		statement.bind(6, &sqlite::Value::String( String::from(gsn) )).unwrap();
+		statement.bind(7, &sqlite::Value::String( String::from(node.key()) )).unwrap();
 			
 		match statement.next() {
 			Ok(_) => Ok(Success::Ok),
@@ -409,10 +413,17 @@ pub fn netspace_routine_is_address_gsn_root(address: &str, gsn: &str, nio: &Nets
 pub fn netspace_add_self(ns: &Netspace, cfg: &Config) {
 	let s : String = format!("spring:{},host:{},address:{},service:dvsp,role:hub,state:enabled",cfg.springname(), cfg.hostname(), cfg.address());
 	let n = Node::from_str(&s).unwrap();
-	ns.gsn_node_register(&n).unwrap();
+	match ns.gsn_node_register(&n) {
+		Ok(_) => println!("[Node] Added self to netspace"),
+		Err(_) => println!("[Node] Ok - Already in netspace")
+	}
+	
 	ns.gsn_node_update_state(&n).unwrap();
 	
-	ns.gtn_geosub_register_node(&n, &cfg.geosub()).unwrap();
+	match ns.gtn_geosub_register_node(&n, &cfg.geosub()) {
+		Ok(_) => println!("[Node] Added self to geospace"),
+		Err(_) => println!("[Node] Ok - Already in geospace")
+	}
 }
 
 #[cfg(test)]
@@ -429,33 +440,35 @@ mod tests {
 	fn setup_netspace(db: &sqlite::Connection) {
 		db.execute("
 		CREATE TABLE `geosub_netspace` (
-			`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
+			`id`			INTEGER PRIMARY KEY AUTOINCREMENT,
 			`springname`	TEXT UNIQUE,
-			`hostname`	TEXT,
-			`address`	TEXT,
-			`service`	INTEGER,
-			`status`	INTEGER,
-			`types`	INTEGER
+			`hostname`		TEXT,
+			`address`		TEXT,
+			`service`		INTEGER,
+			`status`		INTEGER,
+			`types`			INTEGER,
+			`key` 			TEXT
 		);
 		
 		CREATE TABLE `geotop_netspace` (
-			`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
+			`id`			INTEGER PRIMARY KEY AUTOINCREMENT,
 			`springname`	TEXT,
-			`hostname`	TEXT,
-			`address`	TEXT,
-			`service`	INTEGER,
-			`priority`	INTEGER,
-			`geosub`	TEXT
+			`hostname`		TEXT,
+			`address`		TEXT,
+			`service`		INTEGER,
+			`priority`		INTEGER,
+			`geosub`		TEXT,
+			`key`			TEXT
 		);
 		CREATE TABLE `geosub_tokens` (
 			`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
 			`token`	TEXT
 		);
 
-		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types) VALUES (1,'esusx','greenman.zu','192.168.1.1',1,1,1);
-		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types) VALUES (2,'cci','dvsnode.greenman.zu','192.168.1.2',2,1,2);
-		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub) VALUES (1,'springa', 'greenman', '192.168.1.2', 1, 2, 'esusx');
-		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub) VALUES (2,'springb', 'blueman', '192.168.1.3', 2, 1, 'esusx');
+		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types,key) VALUES (1,'esusx','greenman.zu','192.168.1.1',1,1,1,'PUBLIC KEY');
+		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types,key) VALUES (2,'cci','dvsnode.greenman.zu','192.168.1.2',2,1,2,'PUBLIC KEY');
+		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub,key) VALUES (1,'springa', 'greenman', '192.168.1.2', 1, 2, 'esusx','PUBLIC KEY');
+		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub,key) VALUES (2,'springb', 'blueman', '192.168.1.3', 2, 1, 'esusx','PUBLIC KEY');
 		INSERT INTO `geosub_tokens` (token) VALUES ('3858f62230ac3c915f300c664312c63f');
 		").unwrap();
 	}
