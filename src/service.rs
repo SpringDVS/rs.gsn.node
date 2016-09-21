@@ -29,9 +29,13 @@ use unit_test_env::*;
 
 
 /* ToDo:
- * The UDP is running on a single thread, thus making the
- * use of epoll redundent. Spawn threads or create a thread
- * pool for handling the UDP connections
+ * -The UDP is running on a single thread, thus making the
+ *  use of epoll redundent. Spawn threads or create a thread
+ *  pool for handling the UDP connections
+ *
+ * -The response from an outbound HTTP service layer request 
+ *  can come in Transfer-Encoding chunked. This needs to be 
+ *  handled so the requests can use HTTP/1.1 again. 
  */
 
 
@@ -300,7 +304,8 @@ impl Tcp {
 
 			match content_len(msgbuf.as_slice()) {
 				Some((conlen,split)) => {
-					let metalen = hdrend + split; 
+					let metalen = hdrend + split;
+
 					if (metalen + conlen) > 4096 {
 						let diff = conlen - (4096-metalen);
 						let mut vbuf = Vec::new();
