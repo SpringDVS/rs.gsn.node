@@ -463,7 +463,7 @@ mod tests {
 	
 	#[test]
 	fn ts_network_view_spring_p() {
-		let mz = unwrap_some!(ManagementZone::from_str("network view spring foo"));
+		let mz = unwrap_some!(ManagementZone::from_str("network view springname foo"));
 		let nz : NetworkZone = extract_zone_network!(mz);
 		assert_eq!(nz.action, NetworkAction::View);
 		assert_eq!(nz.op1, NetworkOperand::Node(String::from("foo")));
@@ -503,7 +503,7 @@ mod tests {
 	
 	#[test]
 	fn ts_network_view_host_p() {
-		let mz = unwrap_some!(ManagementZone::from_str("network view host foo.bar"));
+		let mz = unwrap_some!(ManagementZone::from_str("network view hostname foo.bar"));
 		let nz : NetworkZone = extract_zone_network!(mz);
 		assert_eq!(nz.action, NetworkAction::View);
 		assert_eq!(nz.op1, NetworkOperand::Host(String::from("foo.bar")));
@@ -511,7 +511,7 @@ mod tests {
 	
 	#[test]
 	fn ts_network_update_node_spring_p() {
-		let mz = unwrap_some!(ManagementZone::from_str("network update node foo spring bar"));
+		let mz = unwrap_some!(ManagementZone::from_str("network update node foo springname bar"));
 		let nz : NetworkZone = extract_zone_network!(mz);
 		assert_eq!(nz.action, NetworkAction::Update);
 		assert_eq!(nz.op1, NetworkOperand::Node(String::from("foo")));
