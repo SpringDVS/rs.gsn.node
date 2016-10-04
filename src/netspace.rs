@@ -419,6 +419,7 @@ impl Netspace for NetspaceIo {
 }
 }
 
+#[cfg(test)]
 pub fn netspace_routine_is_registered(node: &Node, nio: &NetspaceIo) -> bool {
 	
 	match nio.gsn_node_by_hostname(&node.hostname()) {
@@ -437,6 +438,7 @@ pub fn netspace_routine_is_registered(node: &Node, nio: &NetspaceIo) -> bool {
 // Fix:
 // Checking by address is unsafe -- this is where we need to 
 // implement certificates after the prototype
+#[cfg(test)]
 pub fn netspace_routine_is_address_gsn_root(address: &str, gsn: &str, nio: &NetspaceIo) -> bool {
 	let nodes = nio.gtn_geosub_root_nodes(gsn);
 	

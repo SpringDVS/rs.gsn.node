@@ -1,13 +1,10 @@
 
 extern crate unix_socket;
-#[macro_use(cascade_none)]
 
 use prettytable::Table;
 use prettytable::row::Row;
 use prettytable::cell::Cell;
 
-use std::io::stdout;
-use std::thread;
 use std::io::prelude::*;
 use std::mem;
 use std::str::Split;
@@ -38,7 +35,7 @@ macro_rules! extract_zone_network {
 	($e: expr) => (
 		match $e {
 			ManagementZone::Network(s) => s,
-			e => panic!("extract_zone_network -- Unexpected value: {:?}", e) 
+			//e => panic!("extract_zone_network -- Unexpected value: {:?}", e) 
 		}
 	)
 }
@@ -56,16 +53,15 @@ pub fn management_handler(mut stream: UnixStream, config: Config) {
 	};
 
 	let mut szin_buf = [0;4];
-	let mut command = String::new();
 	
-	stream.read_exact(&mut szin_buf);
+	stream.read_exact(&mut szin_buf).unwrap();
 	
 	let szin : u32 = unsafe { mem::transmute(szin_buf) };
 	
 	let mut bufin : Vec<u8> = Vec::new();
 	bufin.resize(szin as usize, b'\0');
-	stream.read_exact(bufin.as_mut_slice());
-	command = String::from_utf8(bufin).unwrap();
+	stream.read_exact(bufin.as_mut_slice()).unwrap();
+	let command = String::from_utf8(bufin).unwrap();
 	
 	let mi = ManagementInstance::new();
 	
@@ -73,7 +69,7 @@ pub fn management_handler(mut stream: UnixStream, config: Config) {
 		Some(s) => s,
 		None => "Error: Unrecognised command".to_string() 
 	};
-	stream.write_all(out.as_bytes());
+	stream.write_all(out.as_bytes()).unwrap();
 }
 
 struct ManagementInstance;
@@ -89,7 +85,7 @@ impl ManagementInstance {
 	pub fn process_request(&self, request: ManagementZone, nio: &NetspaceIo) -> Option<String> {
 		match request {
 			ManagementZone::Network(nz) => self.process_network(nz, nio),
-			_ => None,
+
 		}
 	}
 	
@@ -110,7 +106,7 @@ impl ManagementInstance {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ManagementZone {
-	Network(NetworkZone),Database,
+	Network(NetworkZone),
 }
 
 impl ManagementZone {
@@ -329,35 +325,35 @@ impl NetworkZoneModel {
 			NetworkOperand::Role(r) => {
 				let old = node.role(); 
 				node.update_role(r);
-				nio.gsn_node_update_role(&node);
+				nio.gsn_node_update_role(&node).unwrap();
 				format!("Updated {} role: {} -> {}", node.springname(), old, r)
 			},
 			
 			NetworkOperand::State(s) => {
 				let old = node.state(); 
 				node.update_state(s);
-				nio.gsn_node_update_state(&node);
+				nio.gsn_node_update_state(&node).unwrap();
 				format!("Updated {} state: {} -> {}", node.springname(), old, s)
 			},
 
 			NetworkOperand::Service(s) => {
 				let old = node.service(); 
 				node.update_service(s);
-				nio.gsn_node_update_service(&node);
+				nio.gsn_node_update_service(&node).unwrap();
 				format!("Updated {} service: {} -> {}", node.springname(), old, s)
 			},
 
 			NetworkOperand::Host(s) => {
 				let old = node.hostname().to_string(); 
 				node.update_hostname(&s);
-				nio.gsn_node_update_hostname(&node);
+				nio.gsn_node_update_hostname(&node).unwrap();
 				format!("Updated {} hostname: {} -> {}", node.springname(), old, s)
 			},
 
 			NetworkOperand::Address(s) => {
 				let old = node.address().to_string(); 
 				node.update_address(&s);
-				nio.gsn_node_update_address(&node);
+				nio.gsn_node_update_address(&node).unwrap();
 				format!("Updated {} address: {} -> {}", node.springname(), old, s)
 			},
 			_ => "Error: Unknown or unsupported value for updating".to_string()
@@ -370,7 +366,7 @@ impl NetworkZoneModel {
 			NetworkOperand::Node(s) => {
 				match nio.gsn_node_by_springname(&s) {
 					Ok(n) => {
-						nio.gsn_node_unregister(&n);
+						nio.gsn_node_unregister(&n).unwrap();
 						format!("Removed node {}\n", n.springname())
 					},
 					Err(e) => format!("Error: unabled to retrieve node ({:?})\n", e)
@@ -427,6 +423,7 @@ impl NetworkZoneModel {
 	}
 }
 
+#[cfg(test)]
 mod tests {
 	use super::*;
 	use netspace::*;

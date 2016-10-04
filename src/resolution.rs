@@ -186,6 +186,7 @@ pub fn resolve_uri(suri: &str, nio: &Netspace, config: &NodeConfig, chain: Box<C
 }
 
 
+#[cfg(test)]
 mod tests {
 	use super::*;
 	//use spring_dvs::protocol::{ProtocolObject,Response,Message,MessageContent,CmdType,ContentResponse,ResponseContent,ContentNodeInfo,NodeInfoFmt};

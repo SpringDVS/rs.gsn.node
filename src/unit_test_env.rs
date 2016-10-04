@@ -1,9 +1,5 @@
 extern crate sqlite;
-use self::sqlite::{State,Statement};
 
-use spring_dvs::spaces::Netspace;
-use spring_dvs::node::Node;
-use spring_dvs::enums::NodeService;
 use ::netspace::NetspaceIo;
 use ::config::Config;
 
@@ -11,7 +7,7 @@ use ::config::Config;
 
 pub fn setup_live_test_env(nio: &NetspaceIo, config: &Config) {
 	if config.live_test == false { return }
-	let result = nio.db().execute("
+	let _ = nio.db().execute("
 		CREATE TABLE \"geosub_netspace\" (
 			`id`			INTEGER PRIMARY KEY AUTOINCREMENT,
 			`springname`	TEXT UNIQUE,
@@ -72,6 +68,7 @@ pub fn reset_live_test_env(nio: &NetspaceIo, config: &Config) {
 	}	
 }
 
+/*
 pub fn update_address_test_env(nio: &NetspaceIo, nodestring: &str , config: &Config) {
 	if config.live_test == false { return }
 	let node : Node = match Node::from_str(nodestring) {
@@ -92,7 +89,7 @@ pub fn update_address_test_env(nio: &NetspaceIo, nodestring: &str , config: &Con
 		_ => {},   
 	}
 }
-/*
+
 pub fn add_geosub_root_test_env(nio: &NetspaceIo, nodereggtn: &str, config: &Config) {
 	if config.live_test == false { return }
 	let mut node = Node::from_str(nodereggtn).unwrap();

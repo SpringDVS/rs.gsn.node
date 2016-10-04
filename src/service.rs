@@ -7,7 +7,6 @@ use std::str::FromStr;
 
 use std::fs::remove_file;
 use std::io::prelude::*;
-use std::io::stdout;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::net::{UdpSocket,SocketAddr};
 use std::net::{TcpListener,TcpStream};
@@ -19,7 +18,7 @@ use spring_dvs::protocol::{ProtocolObject,Message};
 use spring_dvs::protocol::{Port};
 
 use spring_dvs::http::HttpWrapper;
-use self::unix_socket::{UnixStream,UnixListener,UnixDatagram};
+use self::unix_socket::UnixListener;
 
 
 use netspace::*;
@@ -108,7 +107,7 @@ impl Dvsp {
 		
 		let cfg_clone = config.clone();
 		
-		let s = thread::spawn(move|| {
+		thread::spawn(move|| {
 			
 			Dvsp::epoll_wait(epfd, socket, cfg_clone);	    
 		});
@@ -227,7 +226,7 @@ impl Tcp {
 							Err(_) => continue
 						};
 						
-						let mut size = match stream.read(&mut buf) {
+						let size = match stream.read(&mut buf) {
 							Ok(s) => s,
 							Err(_) => 0
 						};
@@ -314,9 +313,9 @@ impl Tcp {
 						let diff = conlen - (4096-metalen);
 						let mut vbuf = Vec::new();
 						vbuf.resize(diff, 0);
-						let size = match stream.read(&mut vbuf.as_mut_slice()) {
+						match stream.read(&mut vbuf.as_mut_slice()) {
 							Ok(s) => s,
-							Err(d) =>  0
+							Err(_) =>  0
 						};
 						msgbuf.append(&mut vbuf);	
 					}
@@ -347,19 +346,20 @@ impl Tcp {
 impl Management {
 	pub fn start(cfg: &Config) -> Result<Success,Failure> {
 		let config = cfg.clone();
-		let s = thread::spawn(move|| {
+		
+		thread::spawn(move|| {
 
-			remove_file("primary.sock");
+			let _ = remove_file("primary.sock");
 			let listener = UnixListener::bind("primary.sock").unwrap();				
 			println!("[System] Management service online");
 			
 			for unix_stream in listener.incoming() {
 				let c = config.clone();
 				match unix_stream {
-					Ok(mut stream) => {
+					Ok(stream) => {
 						 thread::spawn(|| management_handler(stream, c));
 						  },
-					Err(err) => { break; }
+					Err(_) => { break; }
 				}
 			}
 			
@@ -370,9 +370,3 @@ impl Management {
 		Ok(Success::Ok)
 	}
 }
-
-mod tests {
-	use super::*;
-	
-}
-

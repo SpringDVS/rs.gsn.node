@@ -79,6 +79,7 @@ impl NodeConfig for Config {
 	}	
 }
 
+#[cfg(test)]
 pub mod mocks {
 	pub struct MockConfig {
 		spring: String,

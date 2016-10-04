@@ -1,8 +1,7 @@
 use std::thread;
 use std::sync::mpsc::channel;
 
-use spring_dvs::enums::*;
-use spring_dvs::protocol::{CmdType,ProtocolObject,Message,MessageContent,ContentResponse,ResponseContent,ContentServiceText};
+use spring_dvs::protocol::{CmdType,ProtocolObject,Message,MessageContent,ResponseContent};
 use spring_dvs::node::Node;
 use spring_dvs::uri::Uri;
 
@@ -26,7 +25,7 @@ pub fn multicast_request(nodes: &Vec<Node>, uri: &mut Uri) -> Message {
 		uri.route_mut().push(node.springname().to_string());
 		let uristr = uri.to_string();
 
-		let mut outbound = match Message::from_bytes(format!("service {}", uristr).as_bytes()) {
+		let outbound = match Message::from_bytes(format!("service {}", uristr).as_bytes()) {
 			Ok(m) => m,
 			Err(_) => continue
 		};
@@ -40,7 +39,7 @@ pub fn multicast_request(nodes: &Vec<Node>, uri: &mut Uri) -> Message {
 	
 	
 	for _ in 0..nodes.len() {
-		let (i, p) = rx.recv().unwrap();
+		let (_, p) = rx.recv().unwrap();
 		match p { Ok(x) => v.push(x), _ => { }};
 	}
 	

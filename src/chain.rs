@@ -60,6 +60,7 @@ impl Chain for ChainService {
 	}
 }
 
+#[cfg(test)]
 pub mod mocks {
 	extern crate spring_dvs;
 	use spring_dvs::node::{Node};
