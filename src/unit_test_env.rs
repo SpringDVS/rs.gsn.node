@@ -37,7 +37,8 @@ pub fn setup_live_test_env(nio: &NetspaceIo, config: &Config) {
 		);
 		CREATE TABLE `geosub_tokens` (
 			`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
-			`token`	TEXT
+			`token`	TEXT,
+			`spring`	TEXT
 		);
 		");
 	

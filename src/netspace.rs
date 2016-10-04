@@ -415,8 +415,67 @@ impl Netspace for NetspaceIo {
 		match statement.next() {
 			Ok(State::Row) => true,
 			_ => false
-	}	
-}
+		}
+			
+	}
+	
+	fn gsn_add_token(&self, token: &str, springname: &str) {
+		let mut statement = self.db.prepare(
+						"INSERT INTO 
+						`geosub_tokens` 
+						(spring,token) 
+						VALUES (?,?)").unwrap();
+		
+		statement.bind(1, &sqlite::Value::String( springname.to_string() )).unwrap();
+		statement.bind(2, &sqlite::Value::String( token.to_string() )).unwrap();
+		
+		let _ = statement.next();
+	}
+	
+	fn gsn_remove_token(&self, token: &str) {
+		let mut statement = self.db.prepare(
+						"DELETE FROM `geosub_tokens` 
+						WHERE token = ?").unwrap();
+		statement.bind(1, &sqlite::Value::String( token.to_string() )).unwrap();
+		let _ = statement.next();
+	}
+	
+	fn gsn_tokens(&self) -> Vec<(String,String)> {
+		let mut statement = self.db().prepare("
+	    	SELECT token,spring FROM `geosub_tokens`").unwrap();
+		
+		let mut v : Vec<(String,String)> = Vec::new();
+		while let State::Row = statement.next().unwrap() {
+			let token = statement.read::<String>(0).unwrap();
+			let spring = statement.read::<String>(1).unwrap();
+			v.push((token,spring));
+		}
+		
+		v
+	}
+	
+	fn gsn_token_by_springname(&self, springname: &str) -> Vec<(String,String)> {
+		let mut statement = self.db().prepare("
+	    	SELECT token,spring FROM `geosub_tokens` WHERE spring=?").unwrap();
+		
+		statement.bind(1, &sqlite::Value::String( springname.to_string() )).unwrap();
+		let mut v : Vec<(String,String)> = Vec::new();
+		while let State::Row = statement.next().unwrap() {
+			let token = statement.read::<String>(0).unwrap();
+			let spring = statement.read::<String>(1).unwrap();
+			v.push((token,spring));
+		}
+		
+		v
+	}
+	
+	fn gsn_remove_token_by_springname(&self, springname: &str) {
+	let mut statement = self.db.prepare(
+						"DELETE FROM `geosub_tokens` 
+						WHERE spring = ?").unwrap();
+		statement.bind(1, &sqlite::Value::String( springname.to_string() )).unwrap();
+		let _ = statement.next();		
+	}
 }
 
 #[cfg(test)]
@@ -502,14 +561,15 @@ mod tests {
 		);
 		CREATE TABLE `geosub_tokens` (
 			`id`	INTEGER PRIMARY KEY AUTOINCREMENT,
-			`token`	TEXT
+			`token`	TEXT,
+			`spring` TEXT
 		);
 
 		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types,key) VALUES (1,'esusx','greenman.zu','192.168.1.1',1,1,1,'PUBLIC KEY');
 		INSERT INTO `geosub_netspace` (id,springname,hostname,address,service,status,types,key) VALUES (2,'cci','dvsnode.greenman.zu','192.168.1.2',2,1,2,'PUBLIC KEY');
 		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub,key) VALUES (1,'springa', 'greenman', '192.168.1.2', 1, 2, 'esusx','PUBLIC KEY');
 		INSERT INTO `geotop_netspace` (id,springname,hostname,address,service,priority,geosub,key) VALUES (2,'springb', 'blueman', '192.168.1.3', 2, 1, 'esusx','PUBLIC KEY');
-		INSERT INTO `geosub_tokens` (token) VALUES ('3858f62230ac3c915f300c664312c63f');
+		INSERT INTO `geosub_tokens` (token,spring) VALUES ('3858f62230ac3c915f300c664312c63f','foo');
 		").unwrap();
 	}
 
