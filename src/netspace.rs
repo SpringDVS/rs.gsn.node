@@ -296,6 +296,44 @@ impl Netspace for NetspaceIo {
 		}
 	}
 	
+	fn gsn_node_update_hostname(&self, node: &Node) ->  Result<Success,NetspaceFailure> {
+		if self.gsn_node_by_springname(node.springname()).is_err() {
+			return Err(NetspaceFailure::NodeNotFound)
+		}
+		let mut statement = self.db.prepare(
+						"UPDATE  
+						`geosub_netspace`
+						SET hostname = ?
+						WHERE springname = ?").unwrap();
+		
+		statement.bind(1, &sqlite::Value::String( node.hostname().to_string() ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
+		
+		match statement.next() {
+			Ok(_) => Ok(Success::Ok),
+			Err(_) => Err(NetspaceFailure::NodeNotFound)   
+		}
+	}
+	
+	fn gsn_node_update_address(&self, node: &Node) ->  Result<Success,NetspaceFailure> {
+		if self.gsn_node_by_springname(node.springname()).is_err() {
+			return Err(NetspaceFailure::NodeNotFound)
+		}
+		let mut statement = self.db.prepare(
+						"UPDATE  
+						`geosub_netspace`
+						SET address = ?
+						WHERE springname = ?").unwrap();
+		
+		statement.bind(1, &sqlite::Value::String( node.address().to_string() ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
+		
+		match statement.next() {
+			Ok(_) => Ok(Success::Ok),
+			Err(_) => Err(NetspaceFailure::NodeNotFound)   
+		}
+	}
+	
 	fn gtn_geosub_root_nodes(&self, gsn: &str) -> Vec<Node> {
 		let mut statement = self.db.prepare("
 	    	SELECT * FROM `geotop_netspace`
