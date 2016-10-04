@@ -349,8 +349,8 @@ impl Management {
 		
 		thread::spawn(move|| {
 
-			let _ = remove_file("primary.sock");
-			let listener = UnixListener::bind("primary.sock").unwrap();				
+			let _ = remove_file("/var/run/springdvs/primary.sock");
+			let listener = UnixListener::bind("/var/run/springdvs/primary.sock").unwrap();				
 			println!("[System] Management service online");
 			
 			for unix_stream in listener.incoming() {
