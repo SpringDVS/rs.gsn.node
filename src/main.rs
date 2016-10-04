@@ -38,7 +38,7 @@ fn main() {
 		}
 	}
 
-    println!("SpringNet Primary Node v1.0\n[Node] {}.{}.uk", config.springname(), config.geosub());
+    println!("SpringNet Primary Node v0.2\n[Node] {}.{}.uk", config.springname(), config.geosub());
     println!("[Node] {}/spring/", config.hostname());
     
     match service::Management::start(&config) {
