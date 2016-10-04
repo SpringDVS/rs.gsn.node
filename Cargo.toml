@@ -7,7 +7,7 @@ license = "GPLv3"
 
 [[bin]]
 
-name = "spring_gsn"
+name = "primary"
 
 [dependencies.spring_dvs]
 path = "/home/cfg/Workspace/rs.springdvs.lib/"
