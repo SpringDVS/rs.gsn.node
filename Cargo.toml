@@ -10,8 +10,11 @@ license = "GPLv3"
 name = "spring_gsn"
 
 [dependencies.spring_dvs]
-path = "src/spring_dvs"
+path = "/home/cfg/Workspace/rs.springdvs.lib/"
+
 
 [dependencies]
 sqlite = "0.21.1"
 epoll = "0.3.0"
+unix_socket = "0.5.0"
+prettytable-rs = "^0.6"

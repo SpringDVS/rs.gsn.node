@@ -6,9 +6,14 @@
 #[macro_use]
 extern crate spring_dvs;
 
+#[macro_use]
+extern crate prettytable;
+
+
 use std::env;
 
 mod config;
+mod management;
 mod netspace;
 mod protocol;
 mod network;
@@ -17,6 +22,7 @@ mod resolution;
 mod service;
 mod requests;
 mod unit_test_env;
+
 
 use config::{NodeConfig};
 
@@ -35,6 +41,11 @@ fn main() {
     println!("SpringNet Primary Node v1.0\n[Node] {}.{}.uk", config.springname(), config.geosub());
     println!("[Node] {}/spring/", config.hostname());
     
+    match service::Management::start(&config) {
+    	Ok(_) =>{  },
+    	Err(_) => println!("[Error]"),
+    }
+
     match service::Dvsp::start(&config) {
     	Ok(_) =>{  },
     	Err(_) => println!("[Error]"),

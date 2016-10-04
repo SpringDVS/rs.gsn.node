@@ -1,14 +1,17 @@
 #![allow(dead_code)]
 extern crate epoll;
+extern crate unix_socket;
 
 use std::str;
 use std::str::FromStr;
 
+use std::fs::remove_file;
 use std::io::prelude::*;
 use std::io::stdout;
 use std::os::unix::io::{AsRawFd, RawFd};
 use std::net::{UdpSocket,SocketAddr};
 use std::net::{TcpListener,TcpStream};
+
 use std::thread;
 
 use spring_dvs::enums::{Response};
@@ -16,11 +19,11 @@ use spring_dvs::protocol::{ProtocolObject,Message};
 use spring_dvs::protocol::{Port};
 
 use spring_dvs::http::HttpWrapper;
-
+use self::unix_socket::{UnixStream,UnixListener,UnixDatagram};
 
 
 use netspace::*;
-
+use management::management_handler;
 
 use self::epoll::*;
 use self::epoll::util::*;
@@ -79,6 +82,7 @@ fn content_len(bytes: &[u8]) -> Option<(usize,usize)> {
 
 pub struct Tcp;
 pub struct Dvsp;
+pub struct Management;
 
 impl Dvsp {
 	pub fn start(config: &Config) -> Result<Success,Failure> {
@@ -146,7 +150,7 @@ impl Dvsp {
 	    
 	    netspace_add_self(&nio, &config);
 
-	    println!("[Service] UDP Service Online");
+	    println!("[System] UDP Service Online");
 	    loop {
 		    match epoll::wait(epfd, &mut events[..], -1) {
 		
@@ -210,7 +214,7 @@ impl Tcp {
 				}
 			};
 		    
-			println!("[Service] TCP Service Online");
+			println!("[System] TCP Service Online");
 			for stream in listener.incoming() {
 				
 				match stream {
@@ -340,10 +344,34 @@ impl Tcp {
 
 }
 
+impl Management {
+	pub fn start(cfg: &Config) -> Result<Success,Failure> {
+		let config = cfg.clone();
+		let s = thread::spawn(move|| {
+
+			remove_file("primary.sock");
+			let listener = UnixListener::bind("primary.sock").unwrap();				
+			println!("[System] Management service online");
+			
+			for unix_stream in listener.incoming() {
+				let c = config.clone();
+				match unix_stream {
+					Ok(mut stream) => {
+						 thread::spawn(|| management_handler(stream, c));
+						  },
+					Err(err) => { break; }
+				}
+			}
+			
+			drop(listener);
+
+		});
+		
+		Ok(Success::Ok)
+	}
+}
+
 mod tests {
-	extern crate spring_dvs;
-	
-	#[allow(unused_imports)]
 	use super::*;
 	
 }
