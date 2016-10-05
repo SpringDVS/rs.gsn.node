@@ -14,6 +14,7 @@ use resolution::{resolve_uri,ResolutionResult,ResolutionFailure};
 pub use netspace::{NetspaceIo};
 pub use config::{NodeConfig,Config};
 use requests::multicast_request;
+use netservice;
 
 
 
@@ -188,7 +189,13 @@ impl Protocol {
 		let curi = msg_service!(msg.content);
 		
 		if curi.uri.route().starts_with(&[svr.config.springname()]) {
-			return response(Response::UnsupportedService)
+			match curi.uri.res_index(0) {
+				Some("cert") => {
+					return netservice::cert::request(&curi.uri, svr)
+				},
+				_ => return response(Response::UnsupportedService) 
+			}
+			
 		}
 		
 		if !curi.uri.route().starts_with(&[svr.config.geosub()]) {

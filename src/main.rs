@@ -9,6 +9,8 @@ extern crate spring_dvs;
 #[macro_use]
 extern crate prettytable;
 
+extern crate rustc_serialize;
+
 
 use std::env;
 
