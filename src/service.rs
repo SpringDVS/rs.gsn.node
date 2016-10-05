@@ -270,7 +270,11 @@ impl Tcp {
 		}
 		let svr = Svr::new(address.clone(), Box::new(config.clone()), nio);
 		// Here we handle a straight DVSP TCP stream
-		Protocol::process(&Message::from_bytes(bytes).unwrap(), svr, Box::new(ChainService{})).to_bytes()
+		let m = match Message::from_bytes(bytes) {
+			Ok(m) => m,
+			Err(_) => return HttpWrapper::serialise_response(&Message::from_bytes(b"104").unwrap())
+		} ;
+		Protocol::process(&m, svr, Box::new(ChainService{})).to_bytes()
 	}
 
 
@@ -350,7 +354,14 @@ impl Management {
 		thread::spawn(move|| {
 
 			let _ = remove_file("/var/run/springdvs/primary.sock");
-			let listener = UnixListener::bind("/var/run/springdvs/primary.sock").unwrap();				
+			let listener = match UnixListener::bind("/var/run/springdvs/primary.sock") {
+				Ok(l) => l,
+				Err(e) => {
+					 println!("[Error] Management Service socket failed to bind ({})", e);
+					 return
+				}
+			};
+
 			println!("[System] Management service online");
 			
 			for unix_stream in listener.incoming() {
