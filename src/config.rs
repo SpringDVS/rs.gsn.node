@@ -15,6 +15,7 @@ pub trait NodeConfig {
 pub struct Config {
 	node: HashMap<String,String>,
 	pub live_test: bool,
+	pub toggle_man: bool,
 }
 
 impl Config {
@@ -23,6 +24,7 @@ impl Config {
 		Config {
 			node: Config::load_kvs(),
 			live_test: false,
+			toggle_man: true,
 		}
 	}
 	

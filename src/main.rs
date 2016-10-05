@@ -21,7 +21,9 @@ mod chain;
 mod resolution;
 mod service;
 mod requests;
+mod netservice;
 mod unit_test_env;
+
 
 
 use config::{NodeConfig};
@@ -34,6 +36,7 @@ fn main() {
 	for a in env::args() {		
 		match a.as_ref() {
 			"--testing" => { config.live_test = true },
+			"--disable-man" => {config.toggle_man = false },
 			_ => { }
 		}
 	}
@@ -41,9 +44,13 @@ fn main() {
     println!("SpringNet Primary Node v0.2\n[Node] {}.{}.uk", config.springname(), config.geosub());
     println!("[Node] {}/spring/", config.hostname());
     
-    match service::Management::start(&config) {
-    	Ok(_) =>{  },
-    	Err(_) => println!("[Error]"),
+    if config.toggle_man {
+	    match service::Management::start(&config) {
+	    	Ok(_) =>{  },
+	    	Err(_) => println!("[Error]"),
+	    }
+    } else {
+    	println!("[System] Management Service Disabled");
     }
 
     match service::Dvsp::start(&config) {
