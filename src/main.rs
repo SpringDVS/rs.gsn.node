@@ -38,7 +38,15 @@ fn main() {
 	for a in env::args() {		
 		match a.as_ref() {
 			"--testing" => { config.live_test = true },
-			"--disable-man" => {config.toggle_man = false },
+			"--disable-man" => {
+				if config.toggle_offline != true {
+					config.toggle_man = false
+				}
+			},
+			"--enable-offline" => {
+								config.toggle_man = true;
+								config.toggle_offline = true;
+							},
 			_ => { }
 		}
 	}
@@ -46,6 +54,10 @@ fn main() {
     println!("SpringNet Primary Node v0.3.0\n[Node] {}.{}.uk", config.springname(), config.geosub());
     println!("[Node] {}/spring/", config.hostname());
     
+	if config.toggle_offline {
+	    println!("[Alert] Server running in offline maintenance mode");
+	}
+ 
     if config.toggle_man {
 	    match service::Management::start(&config) {
 	    	Ok(_) =>{  },
@@ -54,7 +66,13 @@ fn main() {
     } else {
     	println!("[System] Management Service Disabled");
     }
+    
+    
+    // If we're in offline mode we'll wait for the management
+    // service to thread to end and the exit
+    if config.toggle_offline { return }
 
+	
     match service::Dvsp::start(&config) {
     	Ok(_) =>{  },
     	Err(_) => println!("[Error]"),

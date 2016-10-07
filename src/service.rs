@@ -134,11 +134,10 @@ impl Dvsp {
 	    
 	    let nio = match config.live_test {
 			false => {
-				println!("[Alert] Live System");
 				NetspaceIo::new("/var/lib/springdvs/gsn.db") 
 			},
 			true => {
-				println!("[Alert] Warning: Live testing enabled; using testing database");
+				println!("[Alert] Testing enabled -- using testing database");
 				let nio = NetspaceIo::new("live-testing.db");
 				
 				setup_live_test_env(&nio, &config);
@@ -351,7 +350,7 @@ impl Management {
 	pub fn start(cfg: &Config) -> Result<Success,Failure> {
 		let config = cfg.clone();
 		
-		thread::spawn(move|| {
+		let s = thread::spawn(move|| {
 
 			let _ = remove_file("/var/run/springdvs/primary.sock");
 			let listener = match UnixListener::bind("/var/run/springdvs/primary.sock") {
@@ -378,6 +377,9 @@ impl Management {
 
 		});
 		
+		if cfg.toggle_offline == true {
+			let _ = s.join();
+		}
 		Ok(Success::Ok)
 	}
 }

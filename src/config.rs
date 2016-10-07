@@ -16,6 +16,7 @@ pub struct Config {
 	node: HashMap<String,String>,
 	pub live_test: bool,
 	pub toggle_man: bool,
+	pub toggle_offline: bool,
 }
 
 impl Config {
@@ -25,6 +26,7 @@ impl Config {
 			node: Config::load_kvs(),
 			live_test: false,
 			toggle_man: true,
+			toggle_offline: false,
 		}
 	}
 	
