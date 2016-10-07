@@ -10,6 +10,8 @@ use ::spring_dvs::uri::Uri;
 use ::protocol::Svr;
 
 
+pub mod manager;
+
 #[derive(RustcEncodable,Debug,Clone)]
 struct Certificate {
 	name: String,
