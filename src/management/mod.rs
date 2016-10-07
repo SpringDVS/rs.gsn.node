@@ -17,9 +17,11 @@ macro_rules! cascade_none_nowrap {
 
 mod network;
 mod validation;
+mod service;
 
 use self::validation::ValidationZone;
 use self::network::NetworkZone;
+use self::service::ServiceZone;
 
 fn binary_split(msg: &str) -> Vec<&str> {
 	msg.splitn(2, " ").collect()
@@ -72,14 +74,16 @@ impl ManagementInstance {
 	pub fn process_request(&self, request: ManagementZone, nio: &NetspaceIo) -> Option<String> {
 		match request {
 			ManagementZone::Network(nz) => NetworkZone::process(nz, nio),
-			ManagementZone::Validation(vz) => ValidationZone::process(vz, nio)
+			ManagementZone::Validation(vz) => ValidationZone::process(vz, nio),
+			ManagementZone::Service(sz) => ServiceZone::process(sz)
 		}
 	}
 }
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ManagementZone {
-	Network(network::NetworkZone), Validation(validation::ValidationZone)
+	Network(network::NetworkZone), Validation(validation::ValidationZone),
+	Service(service::ServiceZone)
 }
 
 impl ManagementZone {
@@ -94,7 +98,10 @@ impl ManagementZone {
 			},
 			"validation" => {
 				ManagementZone::Validation(cascade_none_nowrap!(ValidationZone::from_str(atom[1])))
-			}
+			},
+			"service" => {
+				ManagementZone::Service(cascade_none_nowrap!(ServiceZone::from_str(atom[1])))
+			},
 			_ => return None
 		})
 		
