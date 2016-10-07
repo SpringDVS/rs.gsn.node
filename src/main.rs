@@ -43,7 +43,7 @@ fn main() {
 		}
 	}
 
-    println!("SpringNet Primary Node v0.2\n[Node] {}.{}.uk", config.springname(), config.geosub());
+    println!("SpringNet Primary Node v0.3.0\n[Node] {}.{}.uk", config.springname(), config.geosub());
     println!("[Node] {}/spring/", config.hostname());
     
     if config.toggle_man {
