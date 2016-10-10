@@ -1,8 +1,14 @@
 extern crate unix_socket;
-use self::unix_socket::UnixStream;
+
+use std::str::Split;
 use std::io::prelude::*;
 use std::mem;
+
 use netspace::{NetspaceIo,Config};
+
+use self::unix_socket::UnixStream;
+
+
 
 #[macro_export]
 macro_rules! cascade_none_nowrap {
@@ -27,7 +33,10 @@ fn binary_split(msg: &str) -> Vec<&str> {
 	msg.splitn(2, " ").collect()
 }
 
-
+pub trait ManagedService {
+	fn init(&self) -> String;
+	fn hook(&self, atom: &mut Split<&str>) -> Option<String>;
+}
 
 
 pub fn management_handler(mut stream: UnixStream, config: Config) {
