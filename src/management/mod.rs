@@ -1,6 +1,5 @@
 extern crate unix_socket;
 
-use std::str::Split;
 use std::io::prelude::*;
 use std::mem;
 
@@ -35,7 +34,7 @@ fn binary_split(msg: &str) -> Vec<&str> {
 
 pub trait ManagedService {
 	fn init(&self) -> String;
-	fn hook(&self, atom: &mut Split<&str>) -> Option<String>;
+	fn hook(&self, atom: &Vec<String>) -> String;
 }
 
 
