@@ -3,6 +3,8 @@ use std::str::Split;
 use ::netservice;
 use ::netservice::cert;
 
+use ::management::ManagedService;
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum ServiceAction {
 	Init
@@ -100,7 +102,9 @@ impl ServiceZoneModel {
 	
 	fn module_init(module: netservice::Module) -> String {
 		match module {
-			netservice::Module::Cert => cert::manager::service_init(),
+			netservice::Module::Cert => {
+				cert::manager::CertManagementInterface::new().init()
+			}
 		}
 	}
 }
