@@ -7,7 +7,7 @@ use ::management::ManagedService;
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ServiceAction {
-	Init
+	Init, Manage
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -15,6 +15,7 @@ pub enum ServiceOperand {
 	None,
 	All,
 	Module(netservice::Module),
+	Pass(Vec<String>)
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -52,6 +53,7 @@ impl ServiceZone {
 		
 		let action = match atom.next() {
 			Some("init") => ServiceAction::Init,
+			Some("manage") => ServiceAction::Manage,
 			_ => return None 	
 		};
 
@@ -77,6 +79,15 @@ impl ServiceZone {
 									cascade_none_nowrap!(atom.next())
 								)
 							)),
+			Some("<") => {
+						let mut v :Vec<String> = Vec::new();
+						let mut o = atom.next();
+						while o != None {
+							v.push(o.unwrap().to_string());
+							o = atom.next();
+						}
+						ServiceOperand::Pass(v)
+			}
 
 			_ => ServiceOperand::None,
 		})
@@ -84,7 +95,8 @@ impl ServiceZone {
 	
 	pub fn process(sz: ServiceZone) -> Option<String> {
 		Some(match sz.action {
-			ServiceAction::Init => ServiceZoneModel::init(sz.op1)
+			ServiceAction::Init => ServiceZoneModel::init(sz.op1),
+			ServiceAction::Manage => ServiceZoneModel::manage(sz.op1, sz.op2)
 		})
 	}
 }
@@ -106,6 +118,26 @@ impl ServiceZoneModel {
 				cert::manager::CertManagementInterface::new().init()
 			}
 		}
+	}
+	
+	fn manage(target: ServiceOperand, pass: ServiceOperand) -> String {
+		match target {
+			ServiceOperand::Module(m) => ServiceZoneModel::module_manage(m, pass),
+			_ => format!("Manage operation is not supported by target filter")
+		}
+	}
+	
+	fn module_manage(module: netservice::Module, pass: ServiceOperand) -> String {
+		let v = match pass {
+			ServiceOperand::Pass(p) => p,
+			_ => return "Bad operand for Manage operation".to_string()
+		};
+
+		match module {
+			netservice::Module::Cert => {
+				cert::manager::CertManagementInterface::new().hook(&v)
+			}
+		}		
 	}
 }
 
