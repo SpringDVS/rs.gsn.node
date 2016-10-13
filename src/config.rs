@@ -9,6 +9,7 @@ pub trait NodeConfig {
 	fn hostname(&self) -> String;
 	fn geosub(&self) -> String;
 	fn address(&self) -> String;
+	fn uri(&self) -> String;
 }
 
 #[derive(Clone)]
@@ -80,7 +81,11 @@ impl NodeConfig for Config {
 
 	fn address(&self) -> String {
 		self.get_key("address")
-	}	
+	}
+	
+	fn uri(&self) -> String {
+		format!("{}.{}.uk", self.springname(),self.geosub())
+	}
 }
 
 #[cfg(test)]
@@ -90,6 +95,7 @@ pub mod mocks {
 		host: String,
 		geosub: String,
 		address: String,
+		uri: String
 	}
 	
 	impl ::config::NodeConfig for MockConfig {
@@ -106,6 +112,9 @@ pub mod mocks {
 		fn address(&self) -> String {
 			self.address.clone()
 		}
+		fn uri(&self) -> String {
+			self.uri.clone()
+		}
 	}
 	
 	impl MockConfig {
@@ -115,6 +124,7 @@ pub mod mocks {
 				host: String::from("barhub.zni.lan"),
 				geosub: String::from("esusx"),
 				address: String::from("127.0.0.1"),
+				uri: String::from("foohub.esusx.uk"),
 			}
 		}
 	}
