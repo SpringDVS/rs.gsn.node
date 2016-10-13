@@ -12,6 +12,7 @@ pub trait Chain {
 }
 
 // ToDo clean this lot up -- better failure states
+// ToDo: Handle HTTP service layer chains
 
 pub struct ChainService;
 
