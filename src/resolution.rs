@@ -6,7 +6,7 @@ use spring_dvs::spaces::{Netspace};
 use spring_dvs::uri::Uri;
 
 use ::config::{NodeConfig};
-use ::chain::Chain;
+use ::chain::{Chain,ChainService};
 
 /*
  * ToDo:
@@ -72,6 +72,10 @@ macro_rules! resolution_err {
 			_ => panic!("resolution_err: Unexpected result {:?}", $result), 
 		}
 	}
+}
+
+pub fn resolve(uri: &str, nio: &Netspace, config: &NodeConfig) -> ResolutionResult {
+	resolve_uri(uri, nio, config, Box::new(ChainService{}))
 }
 
 pub fn resolve_uri(suri: &str, nio: &Netspace, config: &NodeConfig, chain: Box<Chain>) -> ResolutionResult {
