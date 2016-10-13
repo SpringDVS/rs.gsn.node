@@ -93,7 +93,7 @@ impl ValidationZone {
 		})
 	}
 	
-	pub fn process(vz: ValidationZone, nio: &NetspaceIo) -> Option<String> {
+	pub fn process(vz: ValidationZone, nio: &Netspace) -> Option<String> {
 		match vz.action {
 			ValidationAction::View => ValidationZoneModel::view(vz.op1, nio),
 			ValidationAction::Add => ValidationZoneModel::add(vz.op1, vz.op2, nio),
@@ -106,7 +106,7 @@ struct ValidationZoneModel;
 
 
 impl ValidationZoneModel {
-	pub fn view(op: ValidationOperand, nio: &NetspaceIo) -> Option<String> {
+	pub fn view(op: ValidationOperand, nio: &Netspace) -> Option<String> {
 		Some(match op {
 			ValidationOperand::All => {
 				Self::tabulate_tokens(nio.gsn_tokens())
@@ -119,7 +119,7 @@ impl ValidationZoneModel {
 		
 	}
 	
-	pub fn add(op1: ValidationOperand, op2: ValidationOperand, nio: &NetspaceIo) -> Option<String> {
+	pub fn add(op1: ValidationOperand, op2: ValidationOperand, nio: &Netspace) -> Option<String> {
 		
 		let mut token = "".to_string();
 		let mut springname = "".to_string();
@@ -142,7 +142,7 @@ impl ValidationZoneModel {
 		Some(format!("Added token {} for {}\n", token, springname)) 
 	}
 	
-	pub fn remove(op1: ValidationOperand, nio: &NetspaceIo) -> Option<String> {
+	pub fn remove(op1: ValidationOperand, nio: &Netspace) -> Option<String> {
 		Some(match op1 {
 			ValidationOperand::Token(s) => {
 				nio.gsn_remove_token(&s);

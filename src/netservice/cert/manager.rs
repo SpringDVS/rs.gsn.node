@@ -5,12 +5,16 @@ use prettytable::Table;
 use prettytable::row::Row;
 use prettytable::cell::Cell;
 
-use spring_dvs::http::HttpWrapper;
+use ::spring_dvs::http::Outbound;
 
+use ::protocol::Svr;
 use ::netservice::cert::keyring::{Keyring,Certificate};
 
 use ::management::ManagedService;
 use rustc_serialize::json::{Json};
+
+/* ToDo: Import: If key exists in keyring -- run an import against that key
+ */
 
 macro_rules! cascade_none_nowrap {
 	($opt: expr) => (
@@ -29,6 +33,28 @@ impl CertManagementInterface {
 	}
 }
 
+
+impl ManagedService for CertManagementInterface {
+	
+	fn init(&self) -> String {
+		match Keyring::init() {
+			true => format!("Module `certificate` initialised successfully"),
+			false => format!("Module `certificate` initialisation error")
+		}
+	}
+
+	fn hook(&self, atom: &Vec<String>, svr: &Svr) -> String {
+		
+		let mz : Zone = match Zone::parse(atom) {
+			Some(m) => m,
+			None => return "Unknown or malformed action".to_string(),	
+		};
+		
+		Zone::process(mz, svr)
+	}
+
+}
+
 #[derive(Clone, PartialEq, Debug)]
 enum Action {
 	View,
@@ -39,9 +65,9 @@ enum Action {
 impl Action {
 	pub fn from_str(s:&str) -> Option<Action> {
 		match s {
-			"import" => Some(Action::Import),
-			"view" => Some(Action::View),
-			"remove" => Some(Action::Remove),
+			"imp" | "import" => Some(Action::Import),
+			"viw" | "view" => Some(Action::View),
+			"rem" | "remove" => Some(Action::Remove),
 			_ => None,
 		}
 	}
@@ -119,7 +145,7 @@ impl Zone {
 		s
 	}
 	
-	pub fn process(mz: Zone) -> String {
+	pub fn process(mz: Zone, svr: &Svr) -> String {
 		match mz.action {
 			Action::Import => ZoneModel::import(mz.op1),
 			Action::View => ZoneModel::view(mz.op1),
@@ -132,6 +158,8 @@ impl Zone {
 struct ZoneModel;
 
 impl ZoneModel {
+	
+	// ToDo: If key exists in keyring -- run an import against that key
 	pub fn import(op: Operand) -> String {
 		let key = match op {
 			Operand::Certificate(s) => s,
@@ -139,7 +167,7 @@ impl ZoneModel {
 		};
 		
 		let req : String = format!("IMPORT\nPUBLIC {{\n{}\n}}\n", key);
-		let op = HttpWrapper::request(req.as_bytes(), "217.194.223.50", "pkserv.spring-dvs.org", "process");
+		let op = Outbound::request(req.as_bytes(), "217.194.223.50", "pkserv.spring-dvs.org", "process");
 		
 		let resp = match op {
 			Some(v) => String::from_utf8(v).unwrap(),
@@ -274,26 +302,4 @@ impl ZoneModel {
 							"_keyid_"]);
 	}
 	
-}
-
-
-impl ManagedService for CertManagementInterface {
-	
-	fn init(&self) -> String {
-		match Keyring::init() {
-			true => format!("Module `certificate` initialised successfully"),
-			false => format!("Module `certificate` initialisation error")
-		}
-	}
-
-	fn hook(&self, atom: &Vec<String>) -> String {
-		
-		let mz : Zone = match Zone::parse(atom) {
-			Some(m) => m,
-			None => return "Unknown or malformed action".to_string(),	
-		};
-		
-		Zone::process(mz)
-	}
-
 }

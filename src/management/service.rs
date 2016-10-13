@@ -3,7 +3,9 @@ use std::str::Split;
 use ::netservice;
 use ::netservice::cert;
 
+use ::protocol::Svr;
 use ::management::ManagedService;
+
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum ServiceAction {
@@ -52,8 +54,8 @@ impl ServiceZone {
 		let mut atom = msg.split(" ");
 		
 		let action = match atom.next() {
-			Some("init") => ServiceAction::Init,
-			Some("manage") => ServiceAction::Manage,
+			Some("ini") | Some("init") => ServiceAction::Init,
+			Some("man") | Some("manage") => ServiceAction::Manage,
 			_ => return None 	
 		};
 
@@ -73,13 +75,13 @@ impl ServiceZone {
 			Some("all") =>
 						ServiceOperand::All,
 
-			Some("module") =>
+			Some("mod") | Some("module") =>
 						ServiceOperand::Module(cascade_none_nowrap!(
 								netservice::Module::from_str(
 									cascade_none_nowrap!(atom.next())
 								)
 							)),
-			Some("<") => {
+			Some(":") | Some("<") => {
 						let mut v :Vec<String> = Vec::new();
 						let mut o = atom.next();
 						while o != None {
@@ -93,10 +95,10 @@ impl ServiceZone {
 		})
 	}
 	
-	pub fn process(sz: ServiceZone) -> Option<String> {
+	pub fn process(sz: ServiceZone, svr: &Svr) -> Option<String> {
 		Some(match sz.action {
 			ServiceAction::Init => ServiceZoneModel::init(sz.op1),
-			ServiceAction::Manage => ServiceZoneModel::manage(sz.op1, sz.op2)
+			ServiceAction::Manage => ServiceZoneModel::manage(sz.op1, sz.op2, svr)
 		})
 	}
 }
@@ -120,14 +122,14 @@ impl ServiceZoneModel {
 		}
 	}
 	
-	fn manage(target: ServiceOperand, pass: ServiceOperand) -> String {
+	fn manage(target: ServiceOperand, pass: ServiceOperand, svr: &Svr) -> String {
 		match target {
-			ServiceOperand::Module(m) => ServiceZoneModel::module_manage(m, pass),
+			ServiceOperand::Module(m) => ServiceZoneModel::module_manage(m, pass, svr),
 			_ => format!("Manage operation is not supported by target filter")
 		}
 	}
 	
-	fn module_manage(module: netservice::Module, pass: ServiceOperand) -> String {
+	fn module_manage(module: netservice::Module, pass: ServiceOperand, svr: &Svr) -> String {
 		let v = match pass {
 			ServiceOperand::Pass(p) => p,
 			_ => return "Bad operand for Manage operation".to_string()
@@ -135,7 +137,7 @@ impl ServiceZoneModel {
 
 		match module {
 			netservice::Module::Cert => {
-				cert::manager::CertManagementInterface::new().hook(&v)
+				cert::manager::CertManagementInterface::new().hook(&v, svr)
 			}
 		}		
 	}

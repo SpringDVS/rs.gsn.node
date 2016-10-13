@@ -2,7 +2,9 @@ extern crate unix_socket;
 
 use std::io::prelude::*;
 use std::mem;
+use std::str::FromStr;
 
+use ::protocol::{SocketAddr,Svr};
 use netspace::{NetspaceIo,Config};
 
 use self::unix_socket::UnixStream;
@@ -34,7 +36,7 @@ fn binary_split(msg: &str) -> Vec<&str> {
 
 pub trait ManagedService {
 	fn init(&self) -> String;
-	fn hook(&self, atom: &Vec<String>) -> String;
+	fn hook(&self, atom: &Vec<String>, svr: &Svr) -> String;
 }
 
 
@@ -48,7 +50,9 @@ pub fn management_handler(mut stream: UnixStream, config: Config) {
 			NetspaceIo::new("live-testing.db")
 		}
 	};
-
+	
+	let svr = Svr::new(SocketAddr::from_str("0.0.0.0:0").unwrap(), Box::new(config.clone()), &nio);
+	
 	let mut szin_buf = [0;4];
 	
 	stream.read_exact(&mut szin_buf).unwrap();
@@ -62,7 +66,7 @@ pub fn management_handler(mut stream: UnixStream, config: Config) {
 	
 	let mi = ManagementInstance::new();
 	
-	let out = match mi.run(&command, &nio) {
+	let out = match mi.run(&command, &svr) {
 		Some(s) => s,
 		None => "Error: Unrecognised or malformed command".to_string() 
 	};
@@ -75,15 +79,15 @@ impl ManagementInstance {
 	pub fn new() -> Self {
 		ManagementInstance
 	}
-	pub fn run(&self, command: &str, nio: &NetspaceIo) -> Option<String> {
-		self.process_request(cascade_none_nowrap!(ManagementZone::from_str(command)), nio)
+	pub fn run(&self, command: &str, svr: &Svr) -> Option<String> {
+		self.process_request(cascade_none_nowrap!(ManagementZone::from_str(command)), svr)
 	}
 
-	pub fn process_request(&self, request: ManagementZone, nio: &NetspaceIo) -> Option<String> {
+	pub fn process_request(&self, request: ManagementZone, svr: &Svr) -> Option<String> {
 		match request {
-			ManagementZone::Network(nz) => NetworkZone::process(nz, nio),
-			ManagementZone::Validation(vz) => ValidationZone::process(vz, nio),
-			ManagementZone::Service(sz) => ServiceZone::process(sz)
+			ManagementZone::Network(nz) => NetworkZone::process(nz, svr.nio),
+			ManagementZone::Validation(vz) => ValidationZone::process(vz, svr.nio),
+			ManagementZone::Service(sz) => ServiceZone::process(sz, svr)
 		}
 	}
 }
@@ -101,13 +105,13 @@ impl ManagementZone {
 		let atom = binary_split(msg);
 		
 		Some(match atom[0] {
-			"network" => {
+			"net" | "network" => {
 				ManagementZone::Network(cascade_none_nowrap!(NetworkZone::from_str(atom[1])))				
 			},
-			"validation" => {
+			"val" | "validation" => {
 				ManagementZone::Validation(cascade_none_nowrap!(ValidationZone::from_str(atom[1])))
 			},
-			"service" => {
+			"ser" | "service" => {
 				ManagementZone::Service(cascade_none_nowrap!(ServiceZone::from_str(atom[1])))
 			},
 			_ => return None

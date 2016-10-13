@@ -61,8 +61,8 @@ impl NetworkZone {
 		
 		let action = match atom.next() {
 			Some("view") => NetworkAction::View,
-			Some("remove") => NetworkAction::Remove,
-			Some("update") => NetworkAction::Update,
+			Some("rem") | Some("remove") => NetworkAction::Remove,
+			Some("upd") | Some("update") => NetworkAction::Update,
 			_ => return None,
 		};
 
@@ -140,7 +140,7 @@ impl NetworkZone {
 		})
 	}
 	
-	pub fn process(nz: NetworkZone, nio: &NetspaceIo) -> Option<String> {
+	pub fn process(nz: NetworkZone, nio: &Netspace) -> Option<String> {
 		match nz.action {
 			NetworkAction::View => NetworkZoneModel::view(nz.op1, nio),
 			NetworkAction::Update => NetworkZoneModel::update(nz.op1, nz.op2, nio),
@@ -152,7 +152,7 @@ impl NetworkZone {
 struct NetworkZoneModel;
 	
 impl NetworkZoneModel {
-	pub fn view(op: NetworkOperand, nio: &NetspaceIo) -> Option<String> {
+	pub fn view(op: NetworkOperand, nio: &Netspace) -> Option<String> {
 		match op {
 			NetworkOperand::All =>
 				Some( Self::tabulate_nodes(&nio.gsn_nodes()) ),
@@ -177,7 +177,7 @@ impl NetworkZoneModel {
 		
 	}
 	
-	pub fn update(target: NetworkOperand, value: NetworkOperand, nio: &NetspaceIo) -> Option<String> {
+	pub fn update(target: NetworkOperand, value: NetworkOperand, nio: &Netspace) -> Option<String> {
 		let mut v : Vec<String> = Vec::new();
 		
 		match target {
@@ -216,7 +216,7 @@ impl NetworkZoneModel {
 		Some(format!("{}\n",v.join("\n")))
 	}
 	
-	fn update_node(node_result: Result<Node, NetspaceFailure>, value: NetworkOperand, nio: &NetspaceIo ) -> String {
+	fn update_node(node_result: Result<Node, NetspaceFailure>, value: NetworkOperand, nio: &Netspace ) -> String {
 		
 		let mut node = match node_result {
 			Ok(n) => n,
@@ -262,7 +262,7 @@ impl NetworkZoneModel {
 		}
 	} 
 	
-	pub fn remove(op: NetworkOperand, nio: &NetspaceIo) -> Option<String> {
+	pub fn remove(op: NetworkOperand, nio: &Netspace) -> Option<String> {
 		
 		Some(match op {
 			NetworkOperand::Node(s) => {
