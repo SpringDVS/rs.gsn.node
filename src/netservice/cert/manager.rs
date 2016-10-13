@@ -5,10 +5,14 @@ use prettytable::Table;
 use prettytable::row::Row;
 use prettytable::cell::Cell;
 
+use ::spring_dvs::enums::NodeService;
 use ::spring_dvs::http::Outbound;
+use ::spring_dvs::protocol::{generate_message_service};
 
 use ::protocol::Svr;
+use ::resolution::{ResolutionResult,resolve};
 use ::netservice::cert::keyring::{Keyring,Certificate};
+
 
 use ::management::ManagedService;
 use rustc_serialize::json::{Json};
@@ -59,7 +63,8 @@ impl ManagedService for CertManagementInterface {
 enum Action {
 	View,
 	Remove,
-	Import
+	Import,
+	PullReq,
 }
 
 impl Action {
@@ -68,6 +73,7 @@ impl Action {
 			"imp" | "import" => Some(Action::Import),
 			"viw" | "view" => Some(Action::View),
 			"rem" | "remove" => Some(Action::Remove),
+			"pr"  | "pullreq" => Some(Action::PullReq),
 			_ => None,
 		}
 	}
@@ -80,6 +86,7 @@ enum Operand {
 	Certificate(String),
 	Name(String),
 	Key(String),
+	Node(String),
 }
 
 struct Zone {
@@ -124,6 +131,11 @@ impl Zone {
 								String::from_str(cascade_none_nowrap!(atom.next())).unwrap()
 						)
 					},
+					"node" => {
+						Operand::Node(
+								String::from_str(cascade_none_nowrap!(atom.next())).unwrap()
+						)
+					},
 					"all" => Operand::All,
 					_ => Operand::None,
 			},
@@ -149,7 +161,8 @@ impl Zone {
 		match mz.action {
 			Action::Import => ZoneModel::import(mz.op1),
 			Action::View => ZoneModel::view(mz.op1),
-			Action::Remove => ZoneModel::remove(mz.op1)
+			Action::Remove => ZoneModel::remove(mz.op1),
+			Action::PullReq => ZoneModel::pullreq(mz.op1, svr)
 		}	
 	}
 }
@@ -221,6 +234,30 @@ impl ZoneModel {
 			Operand::Key(s) => ZoneModel::remove_with_id(&s),
 			Operand::Name(s) => ZoneModel::remove_with_name(&s),
 			e => format!("Error: Unknown or unsupported target filter ({:?})\n", e)
+		}
+	}
+	
+	fn pullreq(target: Operand, svr: &Svr) -> String {
+		let node_uri = match target {
+			Operand::Node(n) => n,
+			e => return format!("Error: Unknown or unsupported target filter ({:?})\n", e)
+		};
+		
+		let node = match resolve(&node_uri, svr.nio, svr.config.as_ref()) {
+			ResolutionResult::Node(n) => n,
+			_ => return format!("Error: Faild to resolve node\n")
+		};
+		
+		
+		let message = generate_message_service(&format!("{}/cert/pullreq?source={}", node_uri, svr.config.uri())).unwrap();
+		
+		if node.service() == NodeService::Http {
+			match Outbound::request_node(&message, &node) {
+				Some(_) => format!("Made pull request on {}\n", node.springname()),
+				None => format!("Error: Failed to make a pull request\n")
+			}
+		} else {
+			format!("Error: Pull Requests currently only supported on HTTP service layer")
 		}
 	}
 	
