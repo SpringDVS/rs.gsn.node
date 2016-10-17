@@ -51,7 +51,7 @@ fn main() {
 		}
 	}
 
-    println!("SpringNet Primary Node v0.5.0\n[Node] {}.{}.uk", config.springname(), config.geosub());
+    println!("SpringNet Primary Node v0.5.1\n[Node] {}.{}.uk", config.springname(), config.geosub());
     println!("[Node] {}/spring/", config.hostname());
     
 	if config.toggle_offline {
