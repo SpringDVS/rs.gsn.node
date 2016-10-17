@@ -3,7 +3,9 @@ use std::sync::mpsc::channel;
 
 use spring_dvs::protocol::{CmdType,ProtocolObject,Message,MessageContent,ResponseContent};
 use spring_dvs::node::Node;
+use spring_dvs::enums::{NodeService,Failure};
 use spring_dvs::uri::Uri;
+use spring_dvs::http;
 
 use service::Tcp;
 
@@ -32,7 +34,18 @@ pub fn multicast_request(nodes: &Vec<Node>, uri: &mut Uri) -> Message {
 
 		thread::spawn(move|| {
 				
-			let inbound = Tcp::make_request(&outbound, &node.address(), node.hostname(), node.service());
+				
+			let inbound = match node.service() {
+				NodeService::Dvsp =>
+					Tcp::make_request(&outbound, &node.address(), node.hostname(), node.service()),
+
+				NodeService::Http =>
+					match http::Outbound::request_node(&outbound, &node) {
+						Some(m) => Ok(m),
+						None => Err(Failure::InvalidBytes)
+					},
+				_ => Err(Failure::InvalidArgument),
+			};
 			tx.send((i,inbound)).unwrap();		
 		});
 	}
