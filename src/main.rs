@@ -11,6 +11,7 @@ extern crate prettytable;
 
 extern crate rustc_serialize;
 
+static SERVER_VERSION : &'static str = "0.6.0";
 
 use std::env;
 
@@ -51,7 +52,7 @@ fn main() {
 		}
 	}
 
-    println!("SpringNet Primary Node v0.5.1\n[Node] {}.{}.uk", config.springname(), config.geosub());
+    println!("SpringNet Primary Node v{}\n[Node] {}.{}.uk", SERVER_VERSION, config.springname(), config.geosub());
     println!("[Node] {}/spring/", config.hostname());
     
 	if config.toggle_offline {
