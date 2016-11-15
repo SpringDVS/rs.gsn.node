@@ -14,7 +14,7 @@ use std::net::{TcpListener,TcpStream};
 use std::thread;
 
 use spring_dvs::enums::{Response};
-use spring_dvs::protocol::{ProtocolObject,Message};
+use spring_dvs::protocol::{Bytes,ProtocolObject,Message};
 use spring_dvs::protocol::{Port};
 
 use spring_dvs::http::HttpWrapper;
@@ -23,12 +23,29 @@ use self::unix_socket::UnixListener;
 
 use netspace::*;
 use management::management_handler;
+use protocol::ProtocolResult;
 
 use self::epoll::*;
 use self::epoll::util::*;
 
 use unit_test_env::*;
 
+macro_rules! pr_bytes {
+	($content:expr) => (
+		match $content {
+			ProtocolResult::Message(m) => m.to_bytes(),
+			ProtocolResult::Bytes(b) => b,
+			ProtocolResult::Messages(v) => {
+				let mut b = Vec::new();
+				for m in v {
+					b.extend_from_slice(m.to_bytes().as_slice())
+				}
+				
+				b
+			}
+		}
+	)
+}
 
 /* ToDo:
  * -The UDP is running on a single thread, thus making the
@@ -163,20 +180,22 @@ impl Dvsp {
 						};
 
 						let svr = Svr::new(from, Box::new(config.clone()), &nio);
-						let outbound : Message = match Message::from_bytes(&bytes[0..sz]) {
+						let pr = match Message::from_bytes(&bytes[0..sz]) {
 							Ok(m) => Protocol::process(&m, svr, Box::new(ChainService{})),
 							Err(e) => {
 
-								let mut v : Vec<u8> = Vec::new();
+								let mut v : Bytes = Vec::new();
 
 								v.extend_from_slice(&bytes[0..sz]);
 								println!("[Error] Parse Error: {:?}\nDump:\n{:?}", e, v);
-								response(Response::MalformedContent)
+								ProtocolResult::Message(response(Response::MalformedContent))
 							}
 
-						}; 	
+						};
+						
+						let outbound = pr_bytes!(pr);
 
-		            	match socket.send_to(outbound.to_bytes().as_slice(), from) {
+		            	match socket.send_to(outbound.as_slice(), from) {
 		            		Err(_) => return,
 							_ => { }
 		            	};
@@ -251,7 +270,7 @@ impl Tcp {
 		
 	}
 	
-	pub fn handle_request(bytes: &[u8], address: &mut SocketAddr, config: &Config, nio: &NetspaceIo) -> Vec<u8> {
+	pub fn handle_request(bytes: &[u8], address: &mut SocketAddr, config: &Config, nio: &NetspaceIo) -> Bytes {
 		let check = &bytes[0..4];
 		
 		if &check == &"POST".as_bytes() {
@@ -261,19 +280,20 @@ impl Tcp {
 					
 					let svr = Svr::new(address.clone(), Box::new(config.clone()), nio);
 					
-					let m = Protocol::process(&msg, svr, Box::new(ChainService{}));
-					return HttpWrapper::serialise_response_bytes(&m.to_bytes())
+					let b = pr_bytes!(Protocol::process(&msg, svr, Box::new(ChainService{})));
+					return HttpWrapper::serialise_response_bytes(&b)
 				},
 				Err(_) => return HttpWrapper::serialise_response(&Message::from_bytes(b"104").unwrap())
 			};
 		}
+
 		let svr = Svr::new(address.clone(), Box::new(config.clone()), nio);
 		// Here we handle a straight DVSP TCP stream
 		let m = match Message::from_bytes(bytes) {
 			Ok(m) => m,
 			Err(_) => return HttpWrapper::serialise_response(&Message::from_bytes(b"104").unwrap())
 		} ;
-		Protocol::process(&m, svr, Box::new(ChainService{})).to_bytes()
+		pr_bytes!(Protocol::process(&m, svr, Box::new(ChainService{})))
 	}
 
 

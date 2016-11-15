@@ -1,7 +1,7 @@
 use std::thread;
 use std::sync::mpsc::channel;
 
-use spring_dvs::protocol::{CmdType,ProtocolObject,Message,MessageContent,ResponseContent};
+use spring_dvs::protocol::{Bytes,CmdType,ProtocolObject,Message,MessageContent,ResponseContent};
 use spring_dvs::node::Node;
 use spring_dvs::enums::{NodeService,Failure};
 use spring_dvs::uri::Uri;
@@ -9,7 +9,7 @@ use spring_dvs::http;
 
 use service::Tcp;
 
-pub fn multicast_request(nodes: &Vec<Node>, uri: &mut Uri) -> Message {
+pub fn multicast_request(nodes: &Vec<Node>, uri: &mut Uri) -> Bytes {
 
 	let mut v : Vec<Message> = Vec::new();
 	let dbg_uri = uri.to_string();
@@ -59,11 +59,12 @@ pub fn multicast_request(nodes: &Vec<Node>, uri: &mut Uri) -> Message {
 	aggregate_responses(&v)
 }
 
-fn aggregate_responses(responses: &Vec<Message>) -> Message {
+fn aggregate_responses(responses: &Vec<Message>) -> Bytes {
 	
 	
 	let mut v : Vec<u8> = Vec::new();
 
+	v.extend_from_slice(b"200 14 service/multi ");
 	for i in 0..responses.len() {
 
 		match responses[i].cmd {
@@ -72,8 +73,7 @@ fn aggregate_responses(responses: &Vec<Message>) -> Message {
 				let rc = msg_response!(responses[i].content);
 				match rc.content { 
 					ResponseContent::ServiceText(ref t) => {
-						v.extend(t.content.as_bytes());
-						v.push('|' as u8);
+						v.extend_from_slice(format!("201 {} service/text {} ", 13+t.content.len(), t.content).as_bytes())
 					},
 					_ => continue,
 				}
@@ -85,14 +85,6 @@ fn aggregate_responses(responses: &Vec<Message>) -> Message {
 		}
 	}
 	
-	let msg_str : String = match String::from_utf8(v) {
-		Ok(s) => format!("200 {} service/text {}",s.len(),s),
-		Err(_) => String::from("104") 
-	};
-	
-	match Message::from_bytes( msg_str.as_bytes() ) {
-		Ok(m) => m, 
-		Err(_) => Message::from_bytes(b"104").unwrap()
-	}
-	
+	v.extend_from_slice(b"202");
+	v	
 }

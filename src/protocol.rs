@@ -19,9 +19,6 @@ use netservice;
 
 
 
-//use unit_test_env;
-
-
 pub struct Svr<'s> {
 	pub sock: SocketAddr,
 	pub config: Box<NodeConfig>,
@@ -34,6 +31,13 @@ impl<'s> Svr<'s> {
 		Svr{ sock:sock, config:config, nio:nio }
 		
 	}
+}
+
+#[allow(dead_code)]
+pub enum ProtocolResult {
+	Message(Message),
+	Messages(Vec<Message>),
+	Bytes(Bytes)
 }
 
 pub fn response_content(code: Response, content: ResponseContent) -> Message {
@@ -64,21 +68,27 @@ macro_rules! valid_src {
 	)
 }
 	
-
 impl Protocol {
 	
 
 	/// Run the action through the system
-	pub fn process(msg: &Message, svr: Svr, chain: Box<Chain>) -> Message {
+	pub fn process(msg: &Message, svr: Svr, chain: Box<Chain>) -> ProtocolResult {
 		
 		match msg.cmd {
-			CmdType::Register => Protocol::register_action(msg, &svr),
-			CmdType::Unregister => Protocol::unregister_action(msg, &svr),
-			CmdType::Info => Protocol::info_action(msg, &svr),
-			CmdType::Update => Protocol::update_action(msg, &svr),
-			CmdType::Service => Protocol::service_action(msg, &svr),
-			CmdType::Resolve => Protocol::resolve_action(msg, &svr, chain),
-			_ => Message::from_bytes(b"104").unwrap()
+			CmdType::Register =>
+				ProtocolResult::Message(Protocol::register_action(msg, &svr)),
+			CmdType::Unregister => 
+				ProtocolResult::Message(Protocol::unregister_action(msg, &svr)),
+			CmdType::Info =>
+				ProtocolResult::Message(Protocol::info_action(msg, &svr)),
+			CmdType::Update =>
+				ProtocolResult::Message(Protocol::update_action(msg, &svr)),
+			CmdType::Service =>
+				Protocol::service_action(msg, &svr),
+			CmdType::Resolve =>
+				ProtocolResult::Message(Protocol::resolve_action(msg, &svr, chain)),
+			_ =>
+				ProtocolResult::Message(Message::from_bytes(b"104").unwrap())
 		}
 		
 		
@@ -184,29 +194,29 @@ impl Protocol {
 		}		
 	}
 	
-	fn service_action(msg: &Message, svr: &Svr) -> Message {
+	fn service_action(msg: &Message, svr: &Svr) -> ProtocolResult {
 		
 		let curi = msg_service!(msg.content);
 		
 		if curi.uri.route().starts_with(&[svr.config.springname()]) {
 			match curi.uri.res_index(0) {
 				Some("cert") => {
-					return netservice::cert::request(&curi.uri, svr)
+					return ProtocolResult::Message(netservice::cert::request(&curi.uri, svr))
 				},
-				_ => return response(Response::UnsupportedService) 
+				_ => return ProtocolResult::Message(response(Response::UnsupportedService)) 
 			}
 			
 		}
 		
 		if !curi.uri.route().starts_with(&[svr.config.geosub()]) {
-			return response(Response::NetworkError)
+			return ProtocolResult::Message(response(Response::NetworkError))
 		}
 		
 		let mut nodes = svr.nio.gsn_nodes_by_type(NodeRole::Org);
 		nodes.retain(|ref n| n.state() == NodeState::Enabled);
 		
 		let mut uri = curi.uri.clone();
-		multicast_request(&nodes, &mut uri)
+		ProtocolResult::Bytes(multicast_request(&nodes, &mut uri))
 	}
 	
 	fn resolve_action(msg: &Message, svr: &Svr, chain: Box<Chain>) -> Message {
