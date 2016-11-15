@@ -11,7 +11,7 @@ extern crate prettytable;
 
 extern crate rustc_serialize;
 
-static SERVER_VERSION : &'static str = "0.6.0";
+static SERVER_VERSION : &'static str = "0.7.0";
 
 use std::env;
 
