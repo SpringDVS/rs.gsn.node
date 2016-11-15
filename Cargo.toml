@@ -1,7 +1,7 @@
 [package]
 
 name = "spring_gsn"
-version = "0.5.1"
+version = "0.6.0"
 authors = [ "Charlie Fyvie-Gauld <cfg@zunautica.org>" ]
 license = "GPLv3"
 
@@ -10,7 +10,7 @@ license = "GPLv3"
 name = "primary"
 
 [dependencies.spring_dvs]
-path = "/home/cfg/Workspace/rs.springdvs.lib/"
+path = "../rs.proto.lib/"
 
 
 [dependencies]
