@@ -55,7 +55,7 @@ impl ValidationZone {
 		let action = match atom.next() {
 			Some("view") => ValidationAction::View,
 			Some("add") => ValidationAction::Add,
-			Some("remove") => ValidationAction::Remove,
+			Some("rem") | Some("remove") => ValidationAction::Remove,
 			_ => return None,
 		};
 		
