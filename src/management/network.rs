@@ -285,7 +285,7 @@ impl NetworkZoneModel {
 		for node in nodes {
 			table.add_row(Row::new(vec![
 							Cell::new(node.springname()),
-							Cell::new(node.hostname()),
+							Cell::new(&node.hostfield()),
 							Cell::new(node.address()),
 							Cell::new( &format!("{}", node.role()) ),
 							Cell::new( &format!("{}", node.state()) ),
@@ -319,7 +319,7 @@ impl NetworkZoneModel {
 	}
 	
 	fn add_headings(table: &mut Table) {
-		table.add_row(row!["_spring_", "_host_",
+		table.add_row(row!["_spring_", "_hostfield_",
 							"_address_", "_role_", 
 							"_state_", "_service_"]);
 	}

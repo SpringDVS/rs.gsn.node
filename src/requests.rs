@@ -63,7 +63,6 @@ fn aggregate_responses(responses: &Vec<Message>) -> Bytes {
 	
 	
 	let mut v : Vec<u8> = Vec::new();
-
 	v.extend_from_slice(b"200 14 service/multi ");
 	for i in 0..responses.len() {
 

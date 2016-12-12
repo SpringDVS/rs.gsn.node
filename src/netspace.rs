@@ -201,7 +201,7 @@ impl Netspace for NetspaceIo {
 						(springname,hostname,address,service,status,types,key) 
 						VALUES (?,?,?,?,?,?,?)").unwrap();
 		statement.bind(1, &sqlite::Value::String( String::from(node.springname()) ) ).unwrap();
-		statement.bind(2, &sqlite::Value::String( String::from(node.hostname()) ) ).unwrap();
+		statement.bind(2, &sqlite::Value::String( String::from(node.hostfield()) ) ).unwrap();
 		statement.bind(3, &sqlite::Value::String( String::from(node.address()) )).unwrap();
 		statement.bind(4, &sqlite::Value::Integer( node.service() as i64 ) ).unwrap();
 		
